@@ -7,4 +7,4 @@ name = "bump2v"
 version = "0.0.0"
 
 [project.scripts]
-bumptydumpty = "bump2v.__bump2v__:main"
+bumptydumpty = "bump2v.__main__:main"
