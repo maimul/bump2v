@@ -1,6 +1,7 @@
 #!/usr/bin python3
 
 import subprocess
+import sys
 
 # Hold up!
 holdup = "Hold up!! 👮🚨"
