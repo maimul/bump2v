@@ -32,4 +32,5 @@ def main():
     # Run bump2version
     subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
 
-main()
+if __name__ == "__main__":
+    main()
