@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm", "wheel", "bump2version"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bump2v"
+version = "0.0.0"
+
+[project.scripts]
+bumptydumpty = "bump2v.__bump2v__:main"
