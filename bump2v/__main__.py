@@ -8,7 +8,6 @@ holdup = "Hold up!! 👮🚨"
 thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
-
 def main():
     
     # Check for uncommitted changes
