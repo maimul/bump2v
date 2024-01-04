@@ -33,4 +33,5 @@ jobs:
     - name: Build package
       run: python -m build --wheel
     - name: Publish package
-      run: twine upload dist/* -u ${{ vars.PYPI_USERNAME }} -p ${{ secrets.BUMP2V }}
+      run: |
+        twine upload dist/* -u ${{ vars.PYPI_USERNAME }} -p ${{ secrets.BUMP2V }}
