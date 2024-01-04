@@ -32,5 +32,8 @@ def main():
     # Run bump2version
     subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
 
+    # Run git push --follow-tags
+    subprocess.run(["git", "push", "--follow-tags"])
+    
 if __name__ == "__main__":
     main()
