@@ -9,8 +9,6 @@ thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
 def main():
-    
-
 
     # Check the latest commit message
     latest_commit_message = subprocess.run(["git", "log", "-1", "--pretty=%B"], capture_output=True, text=True).stdout.strip()
