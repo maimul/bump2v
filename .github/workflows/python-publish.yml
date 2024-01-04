@@ -33,7 +33,4 @@ jobs:
     - name: Build package
       run: python -m build --wheel
     - name: Publish package
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
-      with:
-        user: __token__
-        password: ${{ secrets.BUMP2V }}
+      run: twine upload dist/* -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.BUMP2V }}
