@@ -20,9 +20,10 @@ def main():
 
     # Define the prefix you want to check for
     prefix_to_check = "Version Updated:"
+    prefix_to_check2 = "Bump version:"
 
     # Check if the latest commit message starts with the specified prefix
-    if latest_commit_message.startswith(prefix_to_check):
+    if latest_commit_message.startswith(prefix_to_check) or latest_commit_message.startswith(prefix_to_check2):
         print(f"{holdup} Bump version rejected. 😿 There are no changes to the code.")
         exit(1)
     else:
