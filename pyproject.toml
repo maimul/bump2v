@@ -8,3 +8,6 @@ version = "0.0.8"
 
 [project.scripts]
 bumptydumpty = "bump2v.__main__:main"
+versionkaboom = "bump2v.__main__:main"
+bismillah = "bump2v.__main__:main"
+bump2v = "bump2v.__main__:main"
