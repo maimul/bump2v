@@ -1,6 +1,5 @@
 #!/usr/bin python3
 
-# Path: bump2v/__main__.py
 import subprocess 
 import sys
 
