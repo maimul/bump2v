@@ -9,7 +9,6 @@ thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
 def main():
-
     # Check the latest commit message
     latest_commit_message = subprocess.run(["git", "log", "-1", "--pretty=%B"], capture_output=True, text=True).stdout.strip()
 
@@ -19,7 +18,7 @@ def main():
 
     # Check if the latest commit message starts with the specified prefix
         # Check for uncommitted changes
-    if subprocess.run(["git", "status", "--porcelain"]).stdout == "":
+    if subprocess.run(["git", "status", "--porcelain"]).stdout:
         print(f"{holdup} Working directory is not clean. Please commit or discard changes before bumping the version. {thankyou}")
         exit(1)
 
@@ -30,12 +29,10 @@ def main():
         # Run bump2version
         subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
         print(f"Yay! 😺🎉 Bump version accepted. {okay}")
-        
+
         # Run git push --follow-tags
         subprocess.run(["git", "push", "--follow-tags"])
     
-
-
 
 if __name__ == "__main__":
     main()
