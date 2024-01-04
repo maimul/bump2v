@@ -1,6 +1,7 @@
 #!/usr/bin python3
 
-import subprocess
+# Path: bump2v/__main__.py
+import subprocess 
 import sys
 
 # Hold up!
@@ -34,6 +35,6 @@ def main():
 
     # Run git push --follow-tags
     subprocess.run(["git", "push", "--follow-tags"])
-    
+
 if __name__ == "__main__":
     main()
