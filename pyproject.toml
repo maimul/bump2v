@@ -6,6 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "bump2v"
 version = "1.0.0"
 
+authors = [
+  { name="Maimul Hoque", email="maimulskates@gmail.com" },
+]
+description = "This is a package to bump version numbers in a project. Fully automated versioning. Prefer to bump2version package instructions."
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/maimul/bump2v"
+
 [project.scripts]
 bumptydumpty = "bump2v.__main__:main"
 versionkaboom = "bump2v.__main__:main"
