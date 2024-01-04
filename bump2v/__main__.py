@@ -18,7 +18,7 @@ def main():
 
     # Check if the latest commit message starts with the specified prefix
         # Check for uncommitted changes
-    if subprocess.run(["git", "status", "--porcelain"]).stdout:
+    if subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout:
         print(f"{holdup} Working directory is not clean. Please commit or discard changes before bumping the version. {thankyou}")
         exit(1)
 
