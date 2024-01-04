@@ -33,7 +33,6 @@ def main():
         # Run git push --follow-tags
         subprocess.run(["git", "push", "--follow-tags"])
     
-
 if __name__ == "__main__":
     main()
 
