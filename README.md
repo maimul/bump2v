@@ -10,5 +10,5 @@ If you are upgrading from a previous version, please follow the upgrade instruct
 
 ## Contributors
 
-A sincere thank you to all contributors who participated in making this release possible.
+This package is built on top of Bump2version. A sincere thank you to all contributors who participated in making this release possible.
 
