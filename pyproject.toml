@@ -25,11 +25,6 @@ keywords = [
 [project.urls]
 Homepage = "https://github.com/maimul/bump2v"
 
-[project.dependencies]
-dependencies = [
-    "bump2version"
-]
-
 [project.scripts]
 bumptydumpty = "bump2v.__main__:main"
 versionkaboom = "bump2v.__main__:main"
