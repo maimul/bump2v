@@ -1,7 +1,8 @@
-#!/usr/bin python3
+#!/usr/bin/env python3
 
-import subprocess 
+import subprocess
 import sys
+import os
 
 # Hold up!
 holdup = "Hold up!! 👮🚨"
@@ -10,12 +11,37 @@ okay = "Okhay lessgo! 🚀🚀🚀"
 
 def tag_exists(tag):
     print("Checking for existing tags 🏷️ ... ")
-    tag = 'v'+str(tag) 
+    tag = 'v' + str(tag)
     """Check if the tag already exists in Git."""
     existing_tags = subprocess.run(["git", "tag"], capture_output=True, text=True).stdout.splitlines()
     return tag in existing_tags
 
+def create_github_config():
+    # Create .github directory if it doesn't exist
+    if not os.path.exists('.github'):
+        print("Creating .github directory...")
+        os.makedirs('.github')
+
+    # Create .bumpversion.cfg file if it doesn't exist
+    config_file_path = ".github/.bumpversion.cfg"
+    if not os.path.exists(config_file_path):
+        print("Creating .bumpversion.cfg file...")
+        with open(config_file_path, 'w') as config_file:
+            config_file.write(
+                "[bumpversion]\n"
+                "current_version = 1.1.2\n"
+                "commit = True\n"
+                "tag = True\n"
+                "message = Version Updated: {current_version} → {new_version} 🚀\n\n"
+                "[bumpversion:file:PATH to your config file in root DIR]\n"
+            )
+    else:
+        print(".bumpversion.cfg already exists. Skipping creation.")
+
 def main():
+    # Create .github and .bumpversion.cfg if needed
+    create_github_config()
+
     # Check the latest commit message
     latest_commit_message = subprocess.run(["git", "log", "-1", "--pretty=%B"], capture_output=True, text=True).stdout.strip()
 
@@ -37,19 +63,18 @@ def main():
     for line in dry_run_output.splitlines():
         if line.startswith("new_version="):
             new_version = line.split("=")[-1].strip()
-            # print(new_version)
     
     # Check if the tag already exists
     if tag_exists(new_version):
         print(f"{holdup} Tag '{new_version}' already exists. Please check Github and update the version number manually. {thankyou}")
         exit(1)
 
-    # Run bump2version
-    subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
+    # Run bump2version with the correct config file path
+    subprocess.run(["bump2version", "--config-file", ".github/.bumpversion.cfg"] + sys.argv[1:])
     print(f"Yay! 😺🎉 Bump version accepted. {okay}")
 
     # Run git push --follow-tags
     subprocess.run(["git", "push", "--follow-tags"])
-    
+
 if __name__ == "__main__":
     main()
