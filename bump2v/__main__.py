@@ -9,9 +9,10 @@ thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
 def tag_exists(tag):
-    print("tag fx")
+    print("Checking for existing tags...")
     """Check if the tag already exists in Git."""
     existing_tags = subprocess.run(["git", "tag"], capture_output=True, text=True).stdout.splitlines()
+    print(f"Existing tag: {existing_tags}")
     return tag in existing_tags
 
 def main():
