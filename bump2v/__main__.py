@@ -35,13 +35,14 @@ def main():
     for line in dry_run_output.splitlines():
         if line.startswith("new_version="):
             new_version = line.split("=")[-1].strip()
-    
+
     # Check if the tag already exists
     if tag_exists(new_version):
         print(f"{holdup} Tag '{new_version}' already exists. Please update the version number manually. {thankyou}")
         exit(1)
 
-    # Run bump2version
+    # If no tag exists, run bump2version
+    print(f"{okay} Tag '{new_version}' does not exist. Proceeding with bump2version.")
     subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
     print(f"Yay! 😺🎉 Bump version accepted. {okay}")
 
