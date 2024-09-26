@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools_scm", "wheel", "bump2version"]
+requires = ["setuptools", "setuptools_scm", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,7 @@ version = "1.0.1"
 description = "This is a package to bump version numbers in a project. Fully automated versioning. Prefer to bump2version package instructions."
 readme = "README.rst"
 license = {file = "LICENSE"}
+dependencies = ["bump2version"]
 
 
 classifiers = [
