@@ -8,10 +8,10 @@ holdup = "Hold up!! 👮🚨"
 thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
-def tag_exists(tag):
+def tag_exists(check_tag):
     """Check if the tag already exists in Git."""
     existing_tags = subprocess.run(["git", "tag"], capture_output=True, text=True).stdout.splitlines()
-    return tag in existing_tags
+    return check_tag in existing_tags
 
 def main():
     # Check the latest commit message

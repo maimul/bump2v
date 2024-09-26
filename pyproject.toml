@@ -8,7 +8,7 @@ version = "1.1.0"
 description = "This is a package to bump version numbers in a project. Fully automated versioning. Prefer to bump2version package instructions."
 readme = "README.rst"
 license = {file = "LICENSE"}
-dependencies = ["bump2version==1.1.0"]
+dependencies = ["bump2version==1.0.0"]
 
 
 classifiers = [
