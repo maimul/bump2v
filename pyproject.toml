@@ -21,6 +21,10 @@ keywords = [
 "python", "deployment", "devops", "dev", "ops", "automation", "bump", "versioning",
 ]
 
+dependencies = [
+    "bump2version"
+]
+
 [project.urls]
 Homepage = "https://github.com/maimul/bump2v"
 
