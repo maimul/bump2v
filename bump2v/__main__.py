@@ -35,7 +35,7 @@ def main():
     for line in dry_run_output.splitlines():
         if line.startswith("new_version="):
             new_version = line.split("=")[-1].strip()
-
+    
     # Check if the tag already exists
     if tag_exists(new_version):
         print(f"{holdup} Tag '{new_version}' already exists. Please update the version number manually. {thankyou}")
