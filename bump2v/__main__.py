@@ -44,7 +44,6 @@ def main():
         exit(1)
 
     # Run bump2version
-    print("whyyyyyyyyy")
     subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
     print(f"Yay! 😺🎉 Bump version accepted. {okay}")
 
