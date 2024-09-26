@@ -8,10 +8,11 @@ holdup = "Hold up!! 👮🚨"
 thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
-def tag_exists(check_tag):
+def tag_exists(tag):
+    print("tag fx")
     """Check if the tag already exists in Git."""
     existing_tags = subprocess.run(["git", "tag"], capture_output=True, text=True).stdout.splitlines()
-    return check_tag in existing_tags
+    return tag in existing_tags
 
 def main():
     # Check the latest commit message
@@ -35,14 +36,15 @@ def main():
     for line in dry_run_output.splitlines():
         if line.startswith("new_version="):
             new_version = line.split("=")[-1].strip()
-
+    
     # Check if the tag already exists
+    print("tag_exist start")
+    print(new_version)
     if tag_exists(new_version):
         print(f"{holdup} Tag '{new_version}' already exists. Please update the version number manually. {thankyou}")
         exit(1)
 
-    # If no tag exists, run bump2version
-    print(f"{okay} Tag '{new_version}' does not exist. Proceeding with bump2version.")
+    # Run bump2version
     subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
     print(f"Yay! 😺🎉 Bump version accepted. {okay}")
 
