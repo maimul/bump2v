@@ -1,18 +1,4 @@
-This release of the `bump2v` package brings a set of enhancements, bug fixes, and new features aimed at enhancing functionality and improving the user experience. The version is deemed production-ready.
-
-## Readiness for Production
-
-This version has undergone thorough testing and is considered stable for production use.
-
-## Upgrade Instructions
-
-If you are upgrading from a previous version, please follow the upgrade instructions in the [documentation](link-to-docs).
-
-## Contributors
-
-This package is built on top of Bump2version. A sincere thank you to all contributors who participated in making this release possible.
-
-# Quick Start
+# Quick Start | How to setup/run
 
 For first time user, please download [bump2v](https://pypi.org/project/bump2v/) package as shown below 👇🏻
 ```zsh
@@ -103,5 +89,18 @@ bumptydumpty patch
 ```
 
 
+This release of the `bump2v` package brings a set of enhancements, bug fixes, and new features aimed at enhancing functionality and improving the user experience. The version is deemed production-ready.
+
+## Readiness for Production
+
+This version has undergone thorough testing and is considered stable for production use.
+
+## Upgrade Instructions
+
+If you are upgrading from a previous version, please follow the upgrade instructions in the [documentation](link-to-docs).
+
+## Contributors
+
+This package is built on top of Bump2version. A sincere thank you to all contributors who participated in making this release possible.
 
 
