@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools_scm", "wheel"]
+requires = ["setuptools", "setuptools_scm", "wheel", "bump2version"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,7 +25,9 @@ keywords = [
 Homepage = "https://github.com/maimul/bump2v"
 
 [project.dependencies]
-"bump2version"
+dependencies = [
+    "bump2version"
+]
 
 [project.scripts]
 bumptydumpty = "bump2v.__main__:main"
