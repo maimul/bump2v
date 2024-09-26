@@ -4,10 +4,6 @@ For first time user, please download [bump2v](https://pypi.org/project/bump2v/) 
 ```zsh
 pip install bump2v
 ```
-or
-```zsh
-pip install -r requirements.txt
-```
 ---------------------------
 
 **Step 1:** Make a Code Change
