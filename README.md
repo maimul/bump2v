@@ -4,37 +4,7 @@ For first time user, please download [bump2v](https://pypi.org/project/bump2v/) 
 ```zsh
 pip install bump2v
 ```
----------------------------
 
-**Step 1:** Make a Code Change
-
-**Step 2:** Stage and Commit the Changes
-
-You may stage and commit from the GUI method or follow the cmd line as shown below:
-```zsh
-git add .
-git commit -m "Describe your changes here"
-```
-**Step 3:** Assign the Tag 🏷️ and push to Github
-
-**Example:**
-```zsh
-bump2v patch
-```
-```zsh
-bump2v minor
-```
-```zsh
-bump2v major
-```
-- v0.0.**1͎** 👈🏻 **Patch Version:** The patch version is typically reserved for bug fixes or minor improvements that are backward-compatible with the existing features.
-- v0.**0͎**.0 👈🏻 **Minor Version:** The minor version reflects smaller, backward-compatible enhancements and features added to the software.
-- v**0͎**.0.0 👈🏻 **Major Version:** The major version indicates significant, potentially backward-incompatible changes to the software.
-
-**Note📝:** _Always has v before the version number._ **vX.X.X** This type of versioning is called Semantic Versioning (also known as SemVer).
-To learn more about Semantic Versioning, [click here](https://www.geeksforgeeks.org/introduction-semantic-versioning/).
-
---------
 ## For new project you need these following configuration
 
 **Step 1:** Create a **.bumpversion.cfg** file and **appInfo.py** file
@@ -71,6 +41,39 @@ app = FastAPI(
 )
 ```
 
+---------------------------
+
+**Step 1:** Make a Code Change
+
+**Step 2:** Stage and Commit the Changes
+
+You may stage and commit from the GUI method or follow the cmd line as shown below:
+```zsh
+git add .
+git commit -m "Describe your changes here"
+```
+**Step 3:** Assign the Tag 🏷️ and push to Github
+
+**Example:**
+```zsh
+bump2v patch
+```
+```zsh
+bump2v minor
+```
+```zsh
+bump2v major
+```
+- v0.0.**1͎** 👈🏻 **Patch Version:** The patch version is typically reserved for bug fixes or minor improvements that are backward-compatible with the existing features.
+- v0.**0͎**.0 👈🏻 **Minor Version:** The minor version reflects smaller, backward-compatible enhancements and features added to the software.
+- v**0͎**.0.0 👈🏻 **Major Version:** The major version indicates significant, potentially backward-incompatible changes to the software.
+
+**Note📝:** _Always has v before the version number._ **vX.X.X** This type of versioning is called Semantic Versioning (also known as SemVer).
+To learn more about Semantic Versioning, [click here](https://www.geeksforgeeks.org/introduction-semantic-versioning/).
+
+--------
+
+
 **PS. 👾Fun Tip:👾** You can yout versionkaboom, bismillah, bumptydumpty instead of bump2v **version**
 
 _Example:_
@@ -82,6 +85,11 @@ bismillah patch
 ```
 ```zsh
 bumptydumpty patch
+```
+
+If there is issue with existing tag use this command to remove the tags and bump the version again
+```zsh
+git tag -l | xargs -n 1 git tag -d
 ```
 
 
