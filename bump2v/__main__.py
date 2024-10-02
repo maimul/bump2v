@@ -16,6 +16,8 @@ def tag_exists(tag):
     return tag in existing_tags
 
 def main():
+    new_version = None  # Initialize new_version to avoid UnboundLocalError
+    
     # Check the latest commit message
     latest_commit_message = subprocess.run(["git", "log", "-1", "--pretty=%B"], capture_output=True, text=True).stdout.strip()
 
