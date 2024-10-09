@@ -36,7 +36,7 @@ def main():
     except subprocess.CalledProcessError:
         print(f"{holdup} Failed to run bump2v dry-run. Please check the following:\n"
               "- Ensure that '.bumpversion.cfg' is present and correctly configured. \n"
-              "- Verify that the version part (e.g., major, minor, patch) is specified correctly.)
+              "- Verify that the version part (e.g., major, minor, patch) is specified correctly.")
         exit(1)
 
 
