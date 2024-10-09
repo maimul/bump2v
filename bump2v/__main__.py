@@ -41,8 +41,15 @@ def main():
 
 
     # Run bump2version
-    subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]], check=True)
-    print(f"Yay! 😺🎉 Bump version accepted. {okay}")
+    try:
+        subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]], check=True)
+        print(f"Yay! 😺🎉 Bump version accepted. {okay}")
+    except subprocess.CalledProcessError:
+        print(f"{holdup} Failed to bump the version. Please try the following: {thankyou}\n"
+              "- Check your bump2v configuration.\n"
+              "- Verify that the versioning arguments are correct (e.g., major, minor, patch).\n"
+              "- Ensure your Git repository is in a valid state (no uncommitted changes).")
+        exit(1)
 
     # Run git push --follow-tags
     try:
