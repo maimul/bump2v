@@ -7,25 +7,18 @@ holdup = "Hold up!! 👮🚨"
 thankyou = "Thank you! 👾"
 okay = "Okhay lessgo! 🚀🚀🚀"
 
-def tag_exists(tag):
-    print("Checking for existing tags 🏷️ ... ")
-    tag = 'v'+str(tag) 
-    """Check if the tag already exists in Git."""
-    existing_tags = subprocess.run(["git", "tag"], capture_output=True, text=True).stdout.splitlines()
-    return tag in existing_tags
-
 def main():
     new_version = None  # Initialize new_version to avoid UnboundLocalError
     
     # Check the latest commit message
-    latest_commit_message = subprocess.run(["git", "log", "-1", "--pretty=%B"], capture_output=True, text=True).stdout.strip()
+    latest_commit_message = subprocess.run(["git", "log", "-1", "--pretty=%B"], capture_output=True, text=True, check=True).stdout.strip()
 
     # Define the prefix you want to check for
     prefix_to_check = "Version Updated:"
     prefix_to_check2 = "Bump version:"
 
     # Check for uncommitted changes
-    if subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout:
+    if subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True).stdout:
         print(f"{holdup} Working directory is not clean. Please commit or discard changes before bumping the version. {thankyou}")
         exit(1)
 
@@ -34,23 +27,30 @@ def main():
         exit(1)
 
     # Extract the next tag from bump2version dry-run
-    dry_run_output = subprocess.run(["bump2version", "--dry-run", "--list"] + sys.argv[1:], capture_output=True, text=True).stdout
-    for line in dry_run_output.splitlines():
-        if line.startswith("new_version="):
-            new_version = line.split("=")[-1].strip()
-            # print(new_version)
-    
-    # Check if the tag already exists
-    if tag_exists(new_version):
-        print(f"{holdup} Tag '{new_version}' already exists. Please check Github and update the version number manually. {thankyou}")
+    try:
+        dry_run_output = subprocess.run(["bump2version", "--dry-run", "--list", "--config-file", ".bumpversion.cfg"] + sys.argv[1:], capture_output=True, text=True, check=True).stdout
+        for line in dry_run_output.splitlines():
+            if line.startswith("new_version="):
+                new_version = line.split("=")[-1].strip()
+                # print(new_version)
+    except subprocess.CalledProcessError:
+        print(f"{holdup} Failed to run bump2v dry-run. Please check the following:\n"
+              "- Ensure that '.bumpversion.cfg' is present and correctly configured. \n"
+              "- Verify that the version part (e.g., major, minor, patch) is specified correctly.)
         exit(1)
 
+
     # Run bump2version
-    subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]])
+    subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]], check=True)
     print(f"Yay! 😺🎉 Bump version accepted. {okay}")
 
     # Run git push --follow-tags
-    subprocess.run(["git", "push", "--follow-tags"])
-    
+    try:
+        subprocess.run(["git", "push", "--follow-tags"], check=True)
+        print(f"Yay! 😺🎉 Push successful. {okay}")
+    except subprocess.CalledProcessError:
+        print(f"{holdup} Failed to push changes to the remote repository. Please push manually. {thankyou}")
+        exit(1)
+        
 if __name__ == "__main__":
     main()
