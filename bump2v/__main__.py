@@ -39,7 +39,6 @@ def main():
               "- Verify that the version part (e.g., major, minor, patch) is specified correctly.")
         exit(1)
 
-
     # Run bump2version
     try:
         subprocess.run(["bump2version"] + [arg for arg in sys.argv[1:]], check=True)
