@@ -62,7 +62,7 @@ For a new project, you need the following configuration:
 
     [bumpversion:file:app/appInfo.py]  # <- location to your appInfo.py file. Example: app/appInfo.py or appInfo.py
 
-**Step 3:** Populate **appInfo.py** with information about your app as shown below:
+**Step 3:** Populate **appInfo.py** with information about your app as shown below (For React/JS, you only need **.bumpversion.cfg** and match the version in package.json with .bumpversion.cfg ) :
 
 .. code-block:: python
 
@@ -86,17 +86,13 @@ For a new project, you need the following configuration:
         openapi_tags=tags_metadata
     )
 
-PS. 👾 **Fun Tip:** 👾 You can use alternative commands like **versionkaboom**, **bismillah**, or **bumptydumpty** instead of bump2v.
+PS. 👾 **Fun Tip:** 👾 You can use alternative commands like **versionkaboom**, or **bumptydumpty** instead of bump2v.
 
 **Example:**
 
 .. code-block:: zsh
 
     versionkaboom patch
-
-.. code-block:: zsh
-
-    bismillah patch
 
 .. code-block:: zsh
 
