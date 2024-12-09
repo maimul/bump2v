@@ -60,7 +60,7 @@ For a new project, you need the following configuration:
     TAG_NAME = {new_version}
     TAG_MESSAGE = "Release {new_version}: Changelog: {changelog}"
 
-    [bumpversion:file:app/appInfo.py]  # <- location to your appInfo.py file. Example: app/appInfo.py or appInfo.py
+    [bumpversion:file:app/appInfo.py]  # <- location to your appInfo.py file. Example: app/appInfo.py or appInfo.py or package.json for react/JS.
 
 **Step 3:** Populate **appInfo.py** with information about your app as shown below (For React/JS, you only need **.bumpversion.cfg** and match the version in package.json with .bumpversion.cfg ) :
 
