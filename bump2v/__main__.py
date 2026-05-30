@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import io
 import logging
+import os
 import subprocess
 import sys
 
@@ -89,6 +90,14 @@ def main():
             "- Ensure your Git repository is in a valid state (no uncommitted changes)."
         )
         sys.exit(1)
+
+    if os.path.isdir("tests"):
+        try:
+            subprocess.run(["pytest", "--tb=short", "-q"], check=True)
+            print(f"Yay! 😺🎉 Tests passed. {okay}")
+        except subprocess.CalledProcessError:
+            print(f"{holdup} Tests failed. Fix before pushing. {thankyou}")
+            sys.exit(1)
 
     try:
         subprocess.run(["git", "push", "--follow-tags"], check=True)

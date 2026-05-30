@@ -1,110 +1,246 @@
-# Quick Start | How to setup/run
+# bump2v
 
-For first time user, please download [bump2v](https://pypi.org/project/bump2v/) package as shown below 👇🏻
+A CLI wrapper and native fork of [bump2version](https://github.com/c4urself/bump2version) for automated semantic versioning. Bumps version numbers across files, commits, tags, and pushes — all in one command.
+
 ```zsh
 pip install bump2v
 ```
 
-## For new project you need these following configuration
+---
 
-**Step 1:** Create a **.bumpversion.cfg** file and **appInfo.py** file
+## How it works
 
-**Step 2:** Populate the file **.bumpversion.cfg** with these data below 👇🏻
+bump2v reads your current version from a config file, increments it, rewrites it in every file you specify, commits the change, creates a git tag, and pushes — all in one command. The **source of truth for the version** lives in your project's main file:
+
+| Stack | Source of truth |
+|---|---|
+| Node.js / React / JS | `package.json` → `"version": "1.0.0"` |
+| Python | `appInfo.py` (or any `.py` file) → `__version__ = "1.0.0"` |
+| Any other file | Configurable via `.bumpversion.cfg` |
+
+The `.bumpversion.cfg` file tells bump2v where to find and update that version string. **You only need to run bump2v — never edit the version manually.**
+
+---
+
+## Quick Start
+
+**Step 1:** Make your code change.
+
+**Step 2:** Stage and commit.
+
+```zsh
+git add .
+git commit -m "fix: describe your change here"
 ```
+
+**Step 3:** Bump the version and push.
+
+```zsh
+bump2v patch   # 1.0.0 → 1.0.1  (bug fix)
+bump2v minor   # 1.0.0 → 1.1.0  (new feature)
+bump2v major   # 1.0.0 → 2.0.0  (breaking change)
+```
+
+That's it. bump2v bumps the version, commits, tags, and pushes in one step.
+
+Alternative command aliases: `bumptydumpty`, `versionkaboom`
+
+---
+
+## Setup by project type
+
+### Node.js / React
+
+The version lives in `package.json`. bump2v finds and updates it there.
+
+**`.bumpversion.cfg`:**
+```ini
 [bumpversion]
-current_version = 0.0.1
-commit = False
+current_version = 1.0.0
+commit = True
 tag = True
-TAG_NAME = {new_version}
-TAG_MESSAGE = "Release {new_version}: Changelog: {changelog}"
+message = Version Updated: {current_version} → {new_version} 🚀 [skip ci]
 
-[bumpversion:file:app/appInfo.py]  # <- location to your appInfo.py file. Example: app/appInfo.py or appInfo.py
+[bumpversion:file:package.json]
+search = "version": "{current_version}"
+replace = "version": "{new_version}"
 ```
-**Step 3:** Populate **appInfo.py** with information about your app as shown below 👇🏻
+
+The `current_version` in `.bumpversion.cfg` must always match the `"version"` field in `package.json`. bump2v keeps them in sync automatically — never edit either one by hand.
+
+---
+
+### Python
+
+The version lives in `appInfo.py` (or wherever you store your app metadata).
+
+**`app/appInfo.py`:**
 ```python
-# File: app/appInfo.py 
-app_name = "Your App name"
-__version__ = "v0.0.1" # Initial version then leave as it is. 
+app_name = "Your App Name"
+__version__ = "1.0.0"
 description = "Describe your app here"
-tags_metadata = "tags metadata here"
 ```
-**Step 4:** Import **appInfo.py** to your **main.py** and use the variable from appInfo to assign your version, app name and description as shown below 👇🏻
+
+**`main.py`:**
 ```python
-from appInfo import __version__, app_name, description, tags_metadata
-from fastapi import FastAPI
+from appInfo import __version__, app_name, description
 
 app = FastAPI(
     title=app_name,
     description=description,
-    version=f" 🏭 Prod:{__version__} ",
-    openapi_tags=tags_metadata
+    version=f"🏭 Prod:{__version__}",
 )
 ```
 
----------------------------
+**`.bumpversion.cfg`:**
+```ini
+[bumpversion]
+current_version = 1.0.0
+commit = True
+tag = True
+message = Version Updated: {current_version} → {new_version} 🚀 [skip ci]
 
-**Step 1:** Make a Code Change
-
-**Step 2:** Stage and Commit the Changes
-
-You may stage and commit from the GUI method or follow the cmd line as shown below:
-```zsh
-git add .
-git commit -m "Describe your changes here"
-```
-**Step 3:** Assign the Tag 🏷️ and push to Github
-
-**Example:**
-```zsh
-bump2v patch
-```
-```zsh
-bump2v minor
-```
-```zsh
-bump2v major
-```
-- v0.0.**1͎** 👈🏻 **Patch Version:** The patch version is typically reserved for bug fixes or minor improvements that are backward-compatible with the existing features.
-- v0.**0͎**.0 👈🏻 **Minor Version:** The minor version reflects smaller, backward-compatible enhancements and features added to the software.
-- v**0͎**.0.0 👈🏻 **Major Version:** The major version indicates significant, potentially backward-incompatible changes to the software.
-
-**Note📝:** _Always has v before the version number._ **vX.X.X** This type of versioning is called Semantic Versioning (also known as SemVer).
-To learn more about Semantic Versioning, [click here](https://www.geeksforgeeks.org/introduction-semantic-versioning/).
-
---------
-
-
-**PS. 👾Fun Tip:👾** You can yout versionkaboom, bismillah, bumptydumpty instead of bump2v **version**
-
-_Example:_
-```zsh
-versionkaboom patch
-```
-```zsh
-bismillah patch
-```
-```zsh
-bumptydumpty patch
+[bumpversion:file:app/appInfo.py]
+search = __version__ = "{current_version}"
+replace = __version__ = "{new_version}"
 ```
 
-If there is issue with existing tag use this command to remove the tags and bump the version again
+Again, `current_version` in `.bumpversion.cfg` must match `__version__` in `appInfo.py`. bump2v keeps them in sync.
+
+---
+
+### Multiple files
+
+You can target as many files as needed:
+
+```ini
+[bumpversion]
+current_version = 1.0.0
+commit = True
+tag = True
+
+[bumpversion:file:package.json]
+search = "version": "{current_version}"
+replace = "version": "{new_version}"
+
+[bumpversion:file:app/appInfo.py]
+search = __version__ = "{current_version}"
+replace = __version__ = "{new_version}"
+```
+
+---
+
+## Semantic Versioning
+
+| Command | Example | When to use |
+|---|---|---|
+| `bump2v patch` | `1.0.0 → 1.0.1` | Bug fixes, minor improvements |
+| `bump2v minor` | `1.0.0 → 1.1.0` | New backward-compatible features |
+| `bump2v major` | `1.0.0 → 2.0.0` | Breaking changes |
+
+---
+
+## Advanced Flags
+
+### `--tag-only` — Tag without bumping
+
+Tags the current HEAD using `current_version` from config, without bumping or committing. Useful when you need to commit a build artifact **between** the version bump commit and the release tag.
+
+```zsh
+bump2v patch --no-tag       # bump + commit, skip the tag
+# ... build artifact, git add artifact, git commit ...
+bumpversion --tag-only      # now tag HEAD with the bumped version
+```
+
+Fixes [#256](https://github.com/c4urself/bump2version/issues/256).
+
+---
+
+### `--ignore-missing-version` — Skip files where version string is not found
+
+When using glob patterns, some matched files may not contain a version string. Instead of crashing, bump2v logs a warning and skips those files.
+
+```zsh
+bump2v patch --ignore-missing-version
+```
+
+Or set it permanently in config:
+
+```ini
+[bumpversion]
+ignore_missing_version = True
+```
+
+Fixes [#267](https://github.com/c4urself/bump2version/issues/267).
+
+---
+
+### `--extra-files` — Include generated files in the bump commit
+
+Stage additional files (e.g. build artifacts, generated docs) alongside the version bump commit, even if they were not modified by bumpversion. Files can be dirty or untracked.
+
+```zsh
+bump2v patch --extra-files docs/changelog.md dist/summary.txt
+```
+
+Or set them in config:
+
+```ini
+[bumpversion]
+extra_files = docs/changelog.md dist/summary.txt
+```
+
+Fixes [#259](https://github.com/c4urself/bump2version/issues/259).
+
+---
+
+### `sign_tags` config fix
+
+Setting `sign_tags = False` in `.bumpversion.cfg` now works correctly. Previously it was silently ignored, causing GPG signing attempts to fail.
+
+```ini
+[bumpversion]
+sign_tags = False
+```
+
+Fixes [#269](https://github.com/c4urself/bump2version/issues/269).
+
+---
+
+## Full config reference
+
+```ini
+[bumpversion]
+current_version = 1.0.0       # must match the version in your source of truth file
+commit = True
+tag = True
+sign_tags = False
+message = Version Updated: {current_version} → {new_version} 🚀 [skip ci]
+tag_name = v{new_version}
+tag_message = Release {new_version}
+commit_args =
+ignore_missing_version = False
+extra_files =
+
+[bumpversion:file:package.json]
+search = "version": "{current_version}"
+replace = "version": "{new_version}"
+```
+
+---
+
+## Tips
+
+Remove all local tags if you need to reset:
+
 ```zsh
 git tag -l | xargs -n 1 git tag -d
 ```
 
-
-This release of the `bump2v` package brings a set of enhancements, bug fixes, and new features aimed at enhancing functionality and improving the user experience. The version is deemed production-ready.
-
-## Readiness for Production
-
-This version has undergone thorough testing and is considered stable for production use.
-
-## Upgrade Instructions
-
-If you are upgrading from a previous version, please follow the upgrade instructions in the [documentation](link-to-docs).
+---
 
 ## Contributors
 
-This package is built on top of Bump2version. A sincere thank you to all contributors who participated in making this release possible.
+Maintained and extended by [@maimul](https://github.com/maimul).
 
-
+Built on top of [bump2version](https://github.com/c4urself/bump2version) by Christian Verkerk.

@@ -7,6 +7,9 @@ name = "bump2v"
 description = "This is a package to bump version numbers in a project. Fully automated versioning. Refer to bump2version package instructions."
 dependencies = []
 readme = "README.rst"
+
+[project.optional-dependencies]
+test = ["pytest"]
 license = {file = "LICENSE"}
 version = "1.4.0" # Update version here 👈🏻
 
@@ -23,6 +26,9 @@ keywords = [
 
 [project.urls]
 Homepage = "https://github.com/maimul/bump2v"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
 
 [project.scripts]
 bumptydumpty = "bump2v.__main__:main"
