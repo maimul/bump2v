@@ -56,6 +56,10 @@ class BaseVCS:
                 return False
             raise
 
+    @classmethod
+    def add_extra_path(cls, path):
+        pass
+
 
 class Git(BaseVCS):
 
@@ -63,19 +67,29 @@ class Git(BaseVCS):
     _COMMIT_COMMAND = ["git", "commit", "-F"]
 
     @classmethod
-    def assert_nondirty(cls):
-        lines = [
-            line.strip()
-            for line in subprocess.check_output(
-                ["git", "status", "--porcelain"]
-            ).splitlines()
-            if not line.strip().startswith(b"??")
-        ]
+    def assert_nondirty(cls, allowed_paths=None):
+        allowed_set = set(allowed_paths or [])
+        raw_lines = subprocess.check_output(["git", "status", "--porcelain"]).splitlines()
 
-        if lines:
+        dirty_lines = []
+        for raw in raw_lines:
+            stripped = raw.strip()
+            if stripped.startswith(b"??"):
+                continue  # untracked — always ignore
+            if allowed_set:
+                # Status line format: "XY path" — path starts at byte 3
+                path = raw[3:].decode("utf-8", errors="replace").strip()
+                # Handle renames: "old -> new"
+                if " -> " in path:
+                    path = path.split(" -> ")[-1]
+                if path in allowed_set:
+                    continue  # this file is explicitly allowed to be dirty
+            dirty_lines.append(stripped)
+
+        if dirty_lines:
             raise WorkingDirectoryIsDirtyException(
                 "Git working directory is not clean:\n{}".format(
-                    b"\n".join(lines).decode()
+                    b"\n".join(dirty_lines).decode()
                 )
             )
 
@@ -121,6 +135,11 @@ class Git(BaseVCS):
     @classmethod
     def add_path(cls, path):
         subprocess.check_output(["git", "add", "--update", path])
+
+    @classmethod
+    def add_extra_path(cls, path):
+        """Stage a file that may be untracked or modified (used for --extra-files)."""
+        subprocess.check_output(["git", "add", path])
 
     @classmethod
     def tag(cls, sign, name, message):

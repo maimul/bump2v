@@ -24,6 +24,7 @@ from .version_part import (
 from .exceptions import (
     IncompleteVersionRepresentationException,
     MissingValueForSerializationException,
+    VersionNotFoundException,
     WorkingDirectoryIsDirtyException,
 )
 
@@ -70,9 +71,57 @@ OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES = [
 ]
 
 
+def _handle_tag_only(known_args):
+    """Tag the current HEAD with the current_version from config, without bumping."""
+    explicit_config = getattr(known_args, "config_file", None)
+    config_file = _determine_config_file(explicit_config)
+    config, config_file_exists, _, _, _ = _load_configuration(config_file, explicit_config, {})
+
+    if not config_file_exists:
+        logger.error("No config file found — cannot determine current version for tagging")
+        sys.exit(1)
+
+    cfg = dict(config.items("bumpversion"))
+    current_version = cfg.get("current_version")
+    if not current_version:
+        logger.error("No current_version set in config — cannot create tag")
+        sys.exit(1)
+
+    sign_tags = cfg.get("sign_tags", False)
+    if isinstance(sign_tags, str):
+        sign_tags = sign_tags.lower() in ("true", "1", "yes")
+
+    tag_name_tmpl = cfg.get("tag_name", "v{new_version}")
+    tag_message_tmpl = cfg.get("tag_message", "Bump version: {current_version} → {new_version}")
+
+    ctx = {"new_version": current_version, "current_version": current_version}
+    ctx.update(time_context)
+    ctx.update(prefixed_environ())
+    ctx.update(special_char_context)
+
+    tag_name = tag_name_tmpl.format(**ctx)
+    tag_message = tag_message_tmpl.format(**ctx)
+
+    for vcs_cls in VCS:
+        if vcs_cls.is_usable():
+            vcs_cls.tag(sign_tags, tag_name, tag_message)
+            logger.info("Tagged HEAD as '%s'", tag_name)
+            print("Tagged HEAD as '{}'".format(tag_name))
+            return
+
+    logger.error("No usable VCS found for tagging")
+    sys.exit(1)
+
+
 def main(original_args=None):
     args, known_args, root_parser, positionals = _parse_arguments_phase_1(original_args)
     _setup_logging(known_args.list, known_args.verbose)
+
+    # #256: --tag-only creates a tag on HEAD without bumping
+    if known_args.tag_only:
+        _handle_tag_only(known_args)
+        return
+
     vcs_info = _determine_vcs_usability()
     defaults = _determine_current_version(vcs_info)
     explicit_config = None
@@ -105,13 +154,13 @@ def main(original_args=None):
     if args.no_configured_files:
         files = []
 
-    vcs = _determine_vcs_dirty(VCS, defaults)
+    vcs = _determine_vcs_dirty(VCS, defaults, extra_files=getattr(args, "extra_files", None))
     files.extend(
         ConfiguredFile(file_name, version_config)
         for file_name
         in (file_names or positionals[1:])
     )
-    _check_files_contain_version(files, current_version, context)
+    _check_files_contain_version(files, current_version, context, getattr(args, "ignore_missing_version", False))
     _replace_version_in_files(files, current_version, new_version, args.dry_run, context)
     _log_list(config, args.new_version)
 
@@ -182,6 +231,14 @@ def _parse_arguments_phase_1(original_args):
         action="store_true",
         default=False,
         help="Don't abort if working directory is dirty",
+        required=False,
+    )
+    root_parser.add_argument(
+        "--tag-only",
+        action="store_true",
+        default=False,
+        dest="tag_only",
+        help="Create a tag for the current version on HEAD without bumping or committing",
         required=False,
     )
     known_args, _ = root_parser.parse_known_args(args)
@@ -276,13 +333,17 @@ def _load_configuration(config_file, explicit_config, defaults):
         except NoOptionError:
             pass
 
-    for boolvaluename in ("commit", "tag", "dry_run"):
+    for boolvaluename in ("commit", "tag", "dry_run", "sign_tags", "ignore_missing_version"):
         try:
             defaults[boolvaluename] = config.getboolean(
                 "bumpversion", boolvaluename
             )
         except NoOptionError:
             pass
+
+    # extra_files in config is a whitespace-separated list
+    if "extra_files" in defaults and isinstance(defaults["extra_files"], str):
+        defaults["extra_files"] = defaults["extra_files"].split()
 
     part_configs = {}
     files = []
@@ -546,6 +607,21 @@ def _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2):
         help="Extra arguments to commit command",
         default=defaults.get("commit_args", ""),
     )
+    parser3.add_argument(
+        "--ignore-missing-version",
+        action="store_true",
+        default=defaults.get("ignore_missing_version", False),
+        dest="ignore_missing_version",
+        help="Ignore files where the version string is not found instead of raising an error",
+    )
+    parser3.add_argument(
+        "--extra-files",
+        metavar="FILE",
+        nargs="*",
+        default=defaults.get("extra_files", []),
+        dest="extra_files",
+        help="Extra files to stage and include in the version bump commit even if not modified by bumpversion",
+    )
     file_names = []
     if "files" in defaults:
         assert defaults["files"] is not None
@@ -569,13 +645,13 @@ def _parse_new_version(args, new_version, vc):
     return new_version
 
 
-def _determine_vcs_dirty(possible_vcses, defaults):
+def _determine_vcs_dirty(possible_vcses, defaults, extra_files=None):
     for vcs in possible_vcses:
         if not vcs.is_usable():
             continue
 
         try:
-            vcs.assert_nondirty()
+            vcs.assert_nondirty(allowed_paths=extra_files)
         except WorkingDirectoryIsDirtyException as e:
             if not defaults["allow_dirty"]:
                 logger.warning(
@@ -589,13 +665,21 @@ def _determine_vcs_dirty(possible_vcses, defaults):
     return None
 
 
-def _check_files_contain_version(files, current_version, context):
+def _check_files_contain_version(files, current_version, context, ignore_missing=False):
     logger.info(
         "Asserting files %s contain the version string...",
         ", ".join([str(f) for f in files]),
     )
     for f in files:
-        f.should_contain_version(current_version, context)
+        try:
+            f.should_contain_version(current_version, context)
+        except VersionNotFoundException:
+            if ignore_missing:
+                logger.warning(
+                    "Version string not found in '%s' — skipping (--ignore-missing-version)", f.path
+                )
+            else:
+                raise
 
 
 def _replace_version_in_files(files, current_version, new_version, dry_run, context):
@@ -662,6 +746,18 @@ def _commit_to_vcs(files, context, config_file, config_file_exists, vcs, args,
 
         if do_commit:
             vcs.add_path(path)
+
+    # Stage any extra files requested via --extra-files / extra_files config (#259)
+    extra_files = getattr(args, "extra_files", None) or []
+    for path in extra_files:
+        logger.info(
+            "%s extra file '%s' to %s",
+            "Would add" if not do_commit else "Adding",
+            path,
+            vcs.__name__,
+        )
+        if do_commit:
+            vcs.add_extra_path(path)
 
     context = {
         "current_version": args.current_version,
