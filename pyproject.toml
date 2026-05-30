@@ -11,7 +11,7 @@ readme = "README.rst"
 [project.optional-dependencies]
 test = ["pytest"]
 license = {file = "LICENSE"}
-version = "1.4.0" # Update version here 👈🏻
+version = "1.5.0" # Update version here 👈🏻
 
 classifiers = [
     "Programming Language :: Python :: 3",
