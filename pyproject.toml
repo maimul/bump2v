@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bump2v"
-description = "This is a package to bump version numbers in a project. Fully automated versioning. Prefer to bump2version package instructions."
+description = "This is a package to bump version numbers in a project. Fully automated versioning. Refer to bump2version package instructions."
 dependencies = []
 readme = "README.rst"
 license = {file = "LICENSE"}
