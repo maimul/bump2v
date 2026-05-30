@@ -152,7 +152,9 @@ def main():
     prefix_to_check = "Version Updated:"
     prefix_to_check2 = "Bump version:"
 
-    if subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True).stdout:
+    porcelain = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True).stdout
+    tracked_dirty = [l for l in porcelain.splitlines() if not l.startswith("??")]
+    if tracked_dirty:
         print(f"{holdup} Working directory is not clean. Please commit or discard changes before bumping the version. {thankyou}")
         sys.exit(1)
 
