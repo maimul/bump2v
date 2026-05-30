@@ -1,5 +1,5 @@
 #!/usr/bin python3
-import subprocess 
+import subprocess
 import sys
 
 # Hold up!
@@ -33,7 +33,7 @@ def main():
         print(f"{holdup} Bump version rejected. 😿 There are no changes to the code.")
         exit(1)
 
-    # Extract the next tag from bump2version dry-run
+    # Extract the next version from bump2version dry-run
     try:
         dry_run_output = subprocess.run(["bump2version", "--dry-run", "--list", "--config-file", ".bumpversion.cfg"] + args, capture_output=True, text=True, check=True).stdout
         for line in dry_run_output.splitlines():
@@ -44,6 +44,9 @@ def main():
               "- Ensure that '.bumpversion.cfg' is present and correctly configured. \n"
               "- Verify that the version part (e.g., major, minor, patch) is specified correctly.")
         exit(1)
+
+    if new_version:
+        print(f"📦 Bumping to version: {new_version}")
 
     # Run bump2version
     try:
@@ -63,6 +66,6 @@ def main():
     except subprocess.CalledProcessError:
         print(f"{holdup} Failed to push changes to the remote repository. Please push manually. {thankyou}")
         exit(1)
-        
+
 if __name__ == "__main__":
     main()
