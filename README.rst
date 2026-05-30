@@ -41,6 +41,7 @@ Quick Start
     bump2v patch   # 1.0.0 -> 1.0.1  (bug fix)
     bump2v minor   # 1.0.0 -> 1.1.0  (new feature)
     bump2v major   # 1.0.0 -> 2.0.0  (breaking change)
+    bump2v auto    # detect level from commit messages automatically
 
 Alternative command aliases: ``bumptydumpty``, ``versionkaboom``
 
@@ -137,6 +138,43 @@ Semantic Versioning
 - ``bump2v patch`` -- ``1.0.0 -> 1.0.1`` -- Bug fixes, minor improvements
 - ``bump2v minor`` -- ``1.0.0 -> 1.1.0`` -- New backward-compatible features
 - ``bump2v major`` -- ``1.0.0 -> 2.0.0`` -- Breaking changes
+- ``bump2v auto``  -- Detect level automatically from commit messages
+
+-----------
+
+Auto mode (Conventional Commits)
+---------------------------------
+
+``bump2v auto`` analyzes every commit since the last git tag using the
+`Conventional Commits <https://www.conventionalcommits.org>`_ spec and
+selects the bump level automatically. No more guessing whether this week's
+work is a patch or a minor.
+
+**Rules:**
+
+- ``feat!:`` or ``BREAKING CHANGE:`` in commit footer -> major
+- ``feat:`` -> minor
+- ``fix:``, ``perf:``, ``refactor:``, ``chore:``, ``docs:``, etc. -> patch
+- Scopes are supported: ``feat(auth):`` counts as ``feat``
+- The **highest** level found across all commits wins
+
+**Example output:**
+
+.. code-block:: zsh
+
+    $ bump2v auto
+    Analyzing commits since v1.5.3...
+
+      feat: add websocket endpoint                        minor
+      fix: handle null pointer in auth module             patch
+      chore: update dependencies                          patch
+      feat!: redesign configuration API                   MAJOR
+
+    Auto-detected: major
+    Bumping to version: 2.0.0
+
+If no conventional commits are found, bumps patch as a safe fallback.
+If there are no commits since the last tag, bump2v exits without bumping.
 
 -----------
 

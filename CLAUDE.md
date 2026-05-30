@@ -73,6 +73,7 @@ replace = __version__ = "{new_version}"
    bump2v patch    # bug fix or doc update
    bump2v minor    # new feature or flag added
    bump2v major    # breaking change to CLI or config format
+   bump2v auto     # let commit messages decide (Conventional Commits)
    ```
    This updates `pyproject.toml`, commits, creates a `v*` tag, and pushes. GitHub Actions picks up the tag and publishes to PyPI automatically.
 
@@ -135,6 +136,7 @@ When adding a new feature or fixing a bug, add a corresponding test:
 | `bumpversion/version_part.py` | `tests/test_version_part.py` |
 | `bumpversion/cli.py` | `tests/test_cli.py` |
 | `bumpversion/vcs.py` | `tests/test_vcs.py` |
+| `bump2v/__main__.py` | `tests/test_auto.py` |
 
 ## Publishing checklist
 
