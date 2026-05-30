@@ -8,7 +8,7 @@ description = "This is a package to bump version numbers in a project. Fully aut
 dependencies = []
 readme = "README.rst"
 license = {file = "LICENSE"}
-version = "1.2.2" # Update version here 👈🏻
+version = "1.3.0" # Update version here 👈🏻
 
 classifiers = [
     "Programming Language :: Python :: 3",
