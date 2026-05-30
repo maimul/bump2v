@@ -1,7 +1,7 @@
 bump2v
 ======
 
-A CLI wrapper and native fork of `bump2version <https://github.com/c4urself/bump2version>`_ for automated semantic versioning. Bumps version numbers across files, commits, tags, and pushes — all in one command.
+A CLI wrapper and native fork of `bump2version <https://github.com/c4urself/bump2version>`_ for automated semantic versioning. Bumps version numbers across files, commits, tags, and pushes -- all in one command.
 
 .. code-block:: zsh
 
@@ -12,19 +12,13 @@ A CLI wrapper and native fork of `bump2version <https://github.com/c4urself/bump
 How it works
 ------------
 
-bump2v reads your current version from a config file, increments it, rewrites it in every file you specify, commits the change, creates a git tag, and pushes — all in one command. The **source of truth for the version** lives in your project's main file:
+bump2v reads your current version from a config file, increments it, rewrites it in every file you specify, commits the change, creates a git tag, and pushes -- all in one command. The **source of truth for the version** lives in your project's main file:
 
-+------------------------------+-------------------------------------------------+
-| Stack                        | Source of truth                                 |
-+==============================+=================================================+
-| Node.js / React / JS         | ``package.json`` → ``"version": "1.0.0"``       |
-+------------------------------+-------------------------------------------------+
-| Python                       | ``appInfo.py`` → ``__version__ = "1.0.0"``      |
-+------------------------------+-------------------------------------------------+
-| Any other file               | Configurable via ``.bumpversion.cfg``           |
-+------------------------------+-------------------------------------------------+
+- **Node.js / React / JS** -- ``package.json`` -> ``"version": "1.0.0"``
+- **Python** -- ``appInfo.py`` -> ``__version__ = "1.0.0"``
+- **Any other file** -- configurable via ``.bumpversion.cfg``
 
-The ``.bumpversion.cfg`` file tells bump2v where to find and update that version string. **You only need to run bump2v — never edit the version manually.**
+The ``.bumpversion.cfg`` file tells bump2v where to find and update that version string. **You only need to run bump2v -- never edit the version manually.**
 
 -----------
 
@@ -44,9 +38,9 @@ Quick Start
 
 .. code-block:: zsh
 
-    bump2v patch   # 1.0.0 → 1.0.1  (bug fix)
-    bump2v minor   # 1.0.0 → 1.1.0  (new feature)
-    bump2v major   # 1.0.0 → 2.0.0  (breaking change)
+    bump2v patch   # 1.0.0 -> 1.0.1  (bug fix)
+    bump2v minor   # 1.0.0 -> 1.1.0  (new feature)
+    bump2v major   # 1.0.0 -> 2.0.0  (breaking change)
 
 Alternative command aliases: ``bumptydumpty``, ``versionkaboom``
 
@@ -68,13 +62,13 @@ The version lives in ``package.json``. bump2v finds and updates it there.
     current_version = 1.0.0
     commit = True
     tag = True
-    message = Version Updated: {current_version} → {new_version} 🚀 [skip ci]
+    message = Version Updated: {current_version} -> {new_version} [skip ci]
 
     [bumpversion:file:package.json]
     search = "version": "{current_version}"
     replace = "version": "{new_version}"
 
-The ``current_version`` in ``.bumpversion.cfg`` must always match the ``"version"`` field in ``package.json``. bump2v keeps them in sync automatically — never edit either one by hand.
+The ``current_version`` in ``.bumpversion.cfg`` must always match the ``"version"`` field in ``package.json``. bump2v keeps them in sync automatically -- never edit either one by hand.
 
 Python
 ~~~~~~
@@ -98,7 +92,7 @@ The version lives in ``appInfo.py`` (or wherever you store your app metadata).
     app = FastAPI(
         title=app_name,
         description=description,
-        version=f"🏭 Prod:{__version__}",
+        version=__version__,
     )
 
 ``.bumpversion.cfg``:
@@ -109,7 +103,7 @@ The version lives in ``appInfo.py`` (or wherever you store your app metadata).
     current_version = 1.0.0
     commit = True
     tag = True
-    message = Version Updated: {current_version} → {new_version} 🚀 [skip ci]
+    message = Version Updated: {current_version} -> {new_version} [skip ci]
 
     [bumpversion:file:app/appInfo.py]
     search = __version__ = "{current_version}"
@@ -140,23 +134,17 @@ You can target as many files as needed:
 Semantic Versioning
 -------------------
 
-+----------------+------------------+----------------------------------+
-| Command        | Example          | When to use                      |
-+================+==================+==================================+
-| bump2v patch   | 1.0.0 → 1.0.1   | Bug fixes, minor improvements    |
-+----------------+------------------+----------------------------------+
-| bump2v minor   | 1.0.0 → 1.1.0   | New backward-compatible features |
-+----------------+------------------+----------------------------------+
-| bump2v major   | 1.0.0 → 2.0.0   | Breaking changes                 |
-+----------------+------------------+----------------------------------+
+- ``bump2v patch`` -- ``1.0.0 -> 1.0.1`` -- Bug fixes, minor improvements
+- ``bump2v minor`` -- ``1.0.0 -> 1.1.0`` -- New backward-compatible features
+- ``bump2v major`` -- ``1.0.0 -> 2.0.0`` -- Breaking changes
 
 -----------
 
 Advanced Flags
 --------------
 
-``--tag-only`` — Tag without bumping
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``--tag-only`` -- Tag without bumping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Tags the current HEAD using ``current_version`` from config, without bumping or committing. Useful when you need to commit a build artifact between the version bump commit and the release tag.
 
@@ -168,8 +156,8 @@ Tags the current HEAD using ``current_version`` from config, without bumping or 
 
 Fixes `#256 <https://github.com/c4urself/bump2version/issues/256>`_.
 
-``--ignore-missing-version`` — Skip files without a version string
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``--ignore-missing-version`` -- Skip files without a version string
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When using glob patterns, some files may not contain the version string. Instead of crashing, bump2v logs a warning and skips those files.
 
@@ -186,8 +174,8 @@ Or set it permanently in config:
 
 Fixes `#267 <https://github.com/c4urself/bump2version/issues/267>`_.
 
-``--extra-files`` — Include generated files in the bump commit
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``--extra-files`` -- Include generated files in the bump commit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Stage additional files alongside the version bump commit, even if not modified by bumpversion. Files can be dirty or untracked.
 
@@ -224,11 +212,11 @@ Full Config Reference
 .. code-block:: ini
 
     [bumpversion]
-    current_version = 1.0.0       # must match the version in your source of truth file
+    current_version = 1.0.0
     commit = True
     tag = True
     sign_tags = False
-    message = Version Updated: {current_version} → {new_version} 🚀 [skip ci]
+    message = Version Updated: {current_version} -> {new_version} [skip ci]
     tag_name = v{new_version}
     tag_message = Release {new_version}
     commit_args =
