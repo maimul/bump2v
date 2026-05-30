@@ -34,3 +34,6 @@ bump2v = "bump2v.__main__:main"
 
 [tool.setuptools.packages.find]
 exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
