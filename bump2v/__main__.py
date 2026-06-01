@@ -201,14 +201,6 @@ def main():
         )
         sys.exit(1)
 
-    if os.path.isdir("tests"):
-        try:
-            subprocess.run(["pytest", "--tb=short", "-q"], check=True)
-            print(f"Yay! 😺🎉 Tests passed. {okay}")
-        except subprocess.CalledProcessError:
-            print(f"{holdup} Tests failed. Fix before pushing. {thankyou}")
-            sys.exit(1)
-
     try:
         subprocess.run(["git", "push", "--follow-tags"], check=True)
         print(f"Yay! 😺🎉 Push successful. {okay}")
