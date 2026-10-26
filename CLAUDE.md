@@ -21,10 +21,20 @@ pyproject.toml          # Package metadata and dependencies (no external deps)
 requirements.txt        # Empty — no dependencies
 .bumpversion.cfg        # bump2v uses itself to version itself
 .github/workflows/
-  pypi-publish.yml      # Publishes to PyPI on every git tag push (v*)
+  test.yml              # Tests on every push to main and every PR (Python 3.10–3.15, Linux/macOS/Windows)
+  pypi-publish.yml      # Publishes to PyPI on every git tag push (v*), after the tests pass
+tests/                  # pytest suite (see Tests below)
+docs/
+  ROADMAP.md            # Where the project is going and why
+  research/             # Research notes behind the roadmap (sourced, dated)
 README.md               # GitHub-facing docs (Markdown)
 README.rst              # PyPI-facing docs (reStructuredText — keep in sync with README.md)
+TRACKER.md              # Working board: what is in progress, next, blocked, done
+AGENTS.md               # Pointer for Codex and other agents to this file and TRACKER.md
 ```
+
+This repo is **public**. Never commit details of private repos that use bump2v (team pipelines,
+failure logs, repo names); keep those in the tracker of the repo they belong to.
 
 ## Source of truth for versions — critical concept
 
@@ -68,7 +78,13 @@ replace = __version__ = "{new_version}"
 
 4. **Update README.md and README.rst** if any user-facing behaviour changed (new flag, new config option, bug fix that changes behaviour). Both files must stay in sync.
 
-5. **Bump and publish** using bump2v itself (we dogfood our own tool):
+5. **Run the tests** (`pytest --tb=short -q`) and preview the release. Since 1.6.2 a dry run
+   writes, commits and pushes nothing:
+   ```zsh
+   bump2v patch --dry-run
+   ```
+
+6. **Bump and publish** using bump2v itself (we dogfood our own tool):
    ```zsh
    bump2v patch    # bug fix or doc update
    bump2v minor    # new feature or flag added
@@ -124,9 +140,14 @@ Tests live in `tests/` and use pytest. Run them with:
 pytest --tb=short -q
 ```
 
-Tests are automatically run in two places:
-1. **Before every push** — `bump2v` detects the `tests/` directory and runs pytest before `git push`. If tests fail, the push is blocked.
-2. **In CI** — `test.yml` runs on every push and PR against main, across Python 3.10, 3.11, 3.12. `pypi-publish.yml` also runs tests as a required step before building and publishing.
+bump2v does **not** run the tests for you before it pushes (that was removed in `a92e5ec`), so run
+them yourself before `bump2v patch|minor|major`. CI runs them in two places:
+1. **`test.yml`** on every push to main and every PR, across Python 3.10–3.15 on Linux, macOS and Windows.
+2. **`pypi-publish.yml`** as a required job before building and publishing.
+
+Integration tests that commit, tag and push use a throwaway repo and a bare remote under
+`tmp_path`, with `GIT_CONFIG_GLOBAL` pointed at an empty file (see the `repo` fixture in
+`tests/test_auto.py`). Never let a test touch this repo's own git state.
 
 When adding a new feature or fixing a bug, add a corresponding test:
 
@@ -149,10 +170,13 @@ Before running `bump2v minor` or `bump2v major`:
 ## GitHub Actions — how PyPI publish works
 
 `.github/workflows/pypi-publish.yml` triggers on any tag matching `v*`. It:
-1. Checks out the repo (`actions/checkout@v4`)
-2. Sets up Python (`actions/setup-python@v5`)
+1. Runs the tests (job `test`); the publish job needs it to pass
+2. Checks out the repo (`actions/checkout@v6`) and sets up Python (`actions/setup-python@v6`)
 3. Builds the wheel: `python -m build --wheel`
-4. Uploads to PyPI via `twine` using repo secrets `PYPI_USERNAME` and `BUMP2V`
+4. Uploads to PyPI via `twine` using the `PYPI_USERNAME` variable and the `BUMP2V` secret
+
+A release is done only when the new version shows on PyPI
+(`curl -s https://pypi.org/pypi/bump2v/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`).
 
 If a publish fails, check the Actions tab on GitHub. Fix the issue, commit, then re-run `bump2v patch` to create a new tag and trigger a fresh publish.
 
