@@ -30,8 +30,11 @@ from .exceptions import (
 from .utils import (
     ConfiguredFile,
     DiscardDefaultIfSpecifiedAppendAction,
+    FileChange,
     keyvaluestring,
     prefixed_environ,
+    read_text_raw,
+    write_all,
 )
 from .vcs import Git, Mercurial
 
@@ -182,8 +185,15 @@ def _compute_plan(args, known_args, root_parser, positionals):
         in (file_names or positionals[1:])
     )
     _check_files_contain_version(files, current_version, context, getattr(args, "ignore_missing_version", False))
+    changes = [f.compute_replacement(current_version, new_version, context) for f in files]
+    config_text, config_change = _compute_config_update(
+        config, config_file, config_newlines, config_file_exists, args.new_version,
+    )
 
     return Plan(
+        changes=changes,
+        config_text=config_text,
+        config_change=config_change,
         args=args,
         defaults=defaults,
         config=config,
@@ -202,15 +212,22 @@ def _compute_plan(args, known_args, root_parser, positionals):
 def apply_plan(plan):
     """Write the files and the config, then commit and tag. Honours --dry-run."""
     args = plan.args
-    _replace_version_in_files(
-        plan.files, plan.current_version, plan.new_version, args.dry_run, plan.context
-    )
+    for change in plan.changes:
+        change.log(args.dry_run)
     _log_list(plan.config, args.new_version)
 
-    _update_config_file(
-        plan.config, plan.config_file, plan.config_newlines, plan.config_file_exists,
-        args.new_version, args.dry_run,
+    write_to_config_file = (not args.dry_run) and plan.config_file_exists
+    logger.info(
+        "%s to config file %s:",
+        "Would write" if not write_to_config_file else "Writing",
+        plan.config_file,
     )
+    logger.info(plan.config_text)
+
+    # Every file is computed already; write them together so a failure part-way
+    # through puts back what was written instead of leaving a half-bumped tree.
+    if not args.dry_run:
+        write_all(plan.changes + ([plan.config_change] if plan.config_change else []))
 
     if plan.vcs:
         context = _commit_to_vcs(plan.files, plan.context, plan.config_file,
@@ -334,6 +351,15 @@ def _determine_config_file(explicit_config):
     return ".bumpversion.cfg"
 
 
+def _to_bool(value, option, section):
+    try:
+        return RawConfigParser.BOOLEAN_STATES[value.strip().lower()]
+    except KeyError:
+        raise ValueError(
+            "{} = {!r} in [{}] is not a boolean (use True or False)".format(option, value, section)
+        )
+
+
 def _load_configuration(config_file, explicit_config, defaults):
     if os.path.basename(config_file) == "setup.cfg":
         config = ConfigParser("")
@@ -352,7 +378,7 @@ def _load_configuration(config_file, explicit_config, defaults):
 
     logger.info("Reading config file %s:", config_file)
 
-    with open(config_file, "rt", encoding="utf-8") as config_fp:
+    with open(config_file, "rt", encoding="utf-8-sig") as config_fp:
         config_content = config_fp.read()
         config_newlines = config_fp.newlines
 
@@ -378,7 +404,8 @@ def _load_configuration(config_file, explicit_config, defaults):
         except NoOptionError:
             pass
 
-    for boolvaluename in ("commit", "tag", "dry_run", "sign_tags", "ignore_missing_version"):
+    for boolvaluename in ("commit", "tag", "dry_run", "sign_tags", "ignore_missing_version",
+                          "replace_all"):
         try:
             defaults[boolvaluename] = config.getboolean(
                 "bumpversion", boolvaluename
@@ -452,12 +479,16 @@ def _load_configuration(config_file, explicit_config, defaults):
             if "replace" not in section_config:
                 section_config["replace"] = defaults.get("replace", "{new_version}")
 
+            replace_all = section_config.pop("replace_all", defaults.get("replace_all", True))
+            if isinstance(replace_all, str):
+                replace_all = _to_bool(replace_all, "replace_all", section_name)
+
             version_config = VersionConfig(**section_config)
             if section_type.get("file") == "glob":
                 for filename_glob in glob.glob(filename, recursive=True):
-                    files.append(ConfiguredFile(filename_glob, version_config))
+                    files.append(ConfiguredFile(filename_glob, version_config, replace_all))
             else:
-                files.append(ConfiguredFile(filename, version_config))
+                files.append(ConfiguredFile(filename, version_config, replace_all))
     return config, config_file_exists, config_newlines, part_configs, files
 
 
@@ -727,11 +758,6 @@ def _check_files_contain_version(files, current_version, context, ignore_missing
                 raise
 
 
-def _replace_version_in_files(files, current_version, new_version, dry_run, context):
-    for f in files:
-        f.replace(current_version, new_version, context, dry_run)
-
-
 def _log_list(config, new_version):
     config.set("bumpversion", "new_version", new_version)
     for key, value in config.items("bumpversion"):
@@ -739,32 +765,30 @@ def _log_list(config, new_version):
     config.remove_option("bumpversion", "new_version")
 
 
-def _update_config_file(
-        config, config_file, config_newlines, config_file_exists, new_version, dry_run,
-):
+def _compute_config_update(config, config_file, config_newlines, config_file_exists,
+                           new_version):
+    """The config file's text with current_version set to new_version.
+
+    Returns (text, FileChange or None). `config` itself is left unchanged. The
+    file is written with one newline style: its own, or \\n if it mixed them.
+    """
+    had_option = config.has_option("bumpversion", "current_version")
+    previous = config.get("bumpversion", "current_version", raw=True) if had_option else None
     config.set("bumpversion", "current_version", new_version)
-    new_config = io.StringIO()
-    try:
-        write_to_config_file = (not dry_run) and config_file_exists
+    buffer = io.StringIO()
+    config.write(buffer)
+    if had_option:
+        config.set("bumpversion", "current_version", previous)
+    else:
+        config.remove_option("bumpversion", "current_version")
 
-        logger.info(
-            "%s to config file %s:",
-            "Would write" if not write_to_config_file else "Writing",
-            config_file,
-        )
+    text = buffer.getvalue().strip() + "\n"
+    if not config_file_exists:
+        return text, None
 
-        config.write(new_config)
-        logger.info(new_config.getvalue())
-
-        if write_to_config_file:
-            with open(config_file, "wt", encoding="utf-8", newline=config_newlines) as f:
-                f.write(new_config.getvalue().strip() + "\n")
-
-    except UnicodeEncodeError:
-        warnings.warn(
-            "Unable to write UTF-8 to config file, because of an old configparser version. "
-            "Update with `pip install --upgrade configparser`."
-        )
+    newline = config_newlines if isinstance(config_newlines, str) else "\n"
+    before, had_bom = read_text_raw(config_file)
+    return text, FileChange(config_file, before, text.replace("\n", newline), had_bom)
 
 
 def _commit_to_vcs(files, context, config_file, config_file_exists, vcs, args,

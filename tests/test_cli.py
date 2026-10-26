@@ -64,3 +64,85 @@ class TestCheckFilesContainVersion:
     def test_empty_file_list_is_noop(self, semver_config, context):
         version = semver_config.parse("1.0.0")
         _check_files_contain_version([], version, context)
+
+
+# --- file edits: line endings, BOM, match count, no partial bumps ---
+
+from bump2v.bumpversion import cli
+from bump2v.bumpversion.utils import FileChange
+
+
+def _bump(tmp_path, monkeypatch, config, files, *args):
+    """Run the core in a directory without version control and return the files' bytes."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".bumpversion.cfg").write_bytes(config)
+    for name, data in files.items():
+        (tmp_path / name).write_bytes(data)
+    cli.main(["patch", *args])
+    return {name: (tmp_path / name).read_bytes() for name in files}
+
+
+CFG = b"[bumpversion]\ncurrent_version = 1.0.0\n\n[bumpversion:file:v.txt]\n"
+
+
+class TestFileEdits:
+    def test_crlf_file_keeps_crlf(self, tmp_path, monkeypatch):
+        out = _bump(tmp_path, monkeypatch, CFG, {"v.txt": b"a\r\nversion 1.0.0\r\nb\r\n"})
+        assert out["v.txt"] == b"a\r\nversion 1.0.1\r\nb\r\n"
+
+    def test_mixed_line_endings_kept_per_line(self, tmp_path, monkeypatch):
+        out = _bump(tmp_path, monkeypatch, CFG, {"v.txt": b"a\r\nversion 1.0.0\nb\r\n"})
+        assert out["v.txt"] == b"a\r\nversion 1.0.1\nb\r\n"
+
+    def test_bom_kept_and_line_start_search_matches(self, tmp_path, monkeypatch):
+        cfg = CFG + b'search = __version__ = "{current_version}"\nreplace = __version__ = "{new_version}"\n'
+        out = _bump(tmp_path, monkeypatch, cfg, {"v.txt": b'\xef\xbb\xbf__version__ = "1.0.0"\n'})
+        assert out["v.txt"] == b'\xef\xbb\xbf__version__ = "1.0.1"\n'
+
+    def test_multiline_search_matches_crlf(self, tmp_path, monkeypatch):
+        cfg = CFG + b"search = [app]\n  version = {current_version}\nreplace = [app]\n  version = {new_version}\n"
+        data = b"[lib]\r\nversion = 1.0.0\r\n[app]\r\nversion = 1.0.0\r\n"
+        out = _bump(tmp_path, monkeypatch, cfg, {"v.txt": data})
+        assert out["v.txt"] == b"[lib]\r\nversion = 1.0.0\r\n[app]\r\nversion = 1.0.1\r\n"
+
+    def test_replace_all_is_the_default(self, tmp_path, monkeypatch):
+        out = _bump(tmp_path, monkeypatch, CFG, {"v.txt": b"1.0.0\ndep==1.0.0\n"})
+        assert out["v.txt"] == b"1.0.1\ndep==1.0.1\n"
+
+    def test_replace_all_false_bumps_first_match_only(self, tmp_path, monkeypatch):
+        cfg = CFG + b"replace_all = False\n"
+        out = _bump(tmp_path, monkeypatch, cfg, {"v.txt": b"1.0.0\ndep==1.0.0\n"})
+        assert out["v.txt"] == b"1.0.1\ndep==1.0.0\n"
+
+    def test_replace_all_false_as_global_default(self, tmp_path, monkeypatch):
+        cfg = CFG.replace(b"current_version = 1.0.0\n", b"current_version = 1.0.0\nreplace_all = False\n")
+        out = _bump(tmp_path, monkeypatch, cfg, {"v.txt": b"1.0.0\ndep==1.0.0\n"})
+        assert out["v.txt"] == b"1.0.1\ndep==1.0.0\n"
+
+    def test_custom_search_never_falls_back_to_bare_version(self, tmp_path, monkeypatch):
+        cfg = CFG + b'search = "version": "{current_version}"\nreplace = "version": "{new_version}"\n'
+        data = b'{"name": "x", "dep": "1.0.0"}\n'
+        out = _bump(tmp_path, monkeypatch, cfg, {"v.txt": data}, "--ignore-missing-version")
+        assert out["v.txt"] == data
+
+    def test_config_with_bom_and_mixed_newlines(self, tmp_path, monkeypatch):
+        cfg = b"\xef\xbb\xbf[bumpversion]\r\ncurrent_version = 1.0.0\n\n[bumpversion:file:v.txt]\r\n"
+        _bump(tmp_path, monkeypatch, cfg, {"v.txt": b"1.0.0\n"})
+        written = (tmp_path / ".bumpversion.cfg").read_bytes()
+        assert b"current_version = 1.0.1" in written
+        assert b"\r" not in written
+
+    def test_failed_write_restores_files_already_written(self, tmp_path, monkeypatch):
+        cfg = CFG + b"\n[bumpversion:file:w.txt]\n"
+        original_write = FileChange.write
+
+        def write(self):
+            if self.path == "w.txt":
+                raise OSError("disk full")
+            original_write(self)
+
+        monkeypatch.setattr(FileChange, "write", write)
+        with pytest.raises(OSError):
+            _bump(tmp_path, monkeypatch, cfg, {"v.txt": b"1.0.0\n", "w.txt": b"1.0.0\n"})
+        assert (tmp_path / "v.txt").read_bytes() == b"1.0.0\n"
+        assert b"current_version = 1.0.0" in (tmp_path / ".bumpversion.cfg").read_bytes()
