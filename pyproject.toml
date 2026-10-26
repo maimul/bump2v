@@ -33,6 +33,7 @@ versionkaboom = "bump2v.__main__:main"
 bump2v = "bump2v.__main__:main"
 
 [tool.setuptools.packages.find]
+include = ["bump2v", "bump2v.*"]
 exclude = ["tests*"]
 
 [tool.pytest.ini_options]

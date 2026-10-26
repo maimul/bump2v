@@ -172,8 +172,11 @@ Before running `bump2v minor` or `bump2v major`:
 `.github/workflows/pypi-publish.yml` triggers on any tag matching `v*`. It:
 1. Runs the tests (job `test`); the publish job needs it to pass
 2. Checks out the repo (`actions/checkout@v6`) and sets up Python (`actions/setup-python@v6`)
-3. Builds the wheel: `python -m build --wheel`
-4. Uploads to PyPI via `twine` using the `PYPI_USERNAME` variable and the `BUMP2V` secret
+3. Builds the wheel and sdist: `python -m build`
+4. Uploads with `pypa/gh-action-pypi-publish` (pinned to a commit SHA) through PyPI Trusted
+   Publishing: the `deploy` job runs in the `pypi` environment with `id-token: write`, so there is
+   no stored API token, and PyPI records attestations. The trusted publisher on PyPI must name
+   owner `maimul`, repo `bump2v`, workflow `pypi-publish.yml`, environment `pypi`.
 
 A release is done only when the new version shows on PyPI
 (`curl -s https://pypi.org/pypi/bump2v/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`).
