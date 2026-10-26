@@ -147,11 +147,17 @@ def _last_release(config):
     """Where the last release was: the newest tag that tag_name could have made, or
     else the last commit whose subject matches the version commit message (for
     configs with tag = False). Returns (ref, label) or (None, None)."""
-    tag_glob = _template_glob(config.get("tag_name", "v{new_version}"))
-    describe = _git("describe", "--tags", "--abbrev=0", "--match", tag_glob)
-    if describe.returncode == 0:
-        tag = describe.stdout.strip()
-        return tag, tag
+    # With tag = False, tags that match tag_name are leftovers from before tagging was
+    # turned off (or another tool's); counting from one of them reads thousands of
+    # old commits. Only the version commits say where the last release was.
+    tags_on = configparser.RawConfigParser.BOOLEAN_STATES.get(
+        str(config.get("tag", "False")).strip().lower(), False)
+    if tags_on:
+        tag_glob = _template_glob(config.get("tag_name", "v{new_version}"))
+        describe = _git("describe", "--tags", "--abbrev=0", "--match", tag_glob)
+        if describe.returncode == 0:
+            tag = describe.stdout.strip()
+            return tag, tag
 
     message = config.get("message", "Bump version: {current_version} → {new_version}")
     subject = _template_regex(message.strip().splitlines()[0])

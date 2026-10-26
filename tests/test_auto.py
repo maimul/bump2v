@@ -388,6 +388,21 @@ class TestAutoBoundary:
         assert result["auto"]["since"] == boundary and result["auto"]["level"] == "minor"
         assert [c["subject"] for c in result["auto"]["commits"]] == ["feat: a feature"]
 
+    def test_with_tagging_off_old_matching_tags_are_ignored(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        _git(work, "tag", "v0.1.0", "HEAD~1")   # from before tagging was turned off
+        cfg = work / ".bumpversion.cfg"
+        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = False\n"))
+        _git(work, "commit", "-q", "-am", "chore: stop tagging releases")
+        _commit(work, "old.txt", "feat!: an old breaking change, long released")
+        _git(work, "commit", "-q", "--allow-empty", "-m", "Bump version: 0.9.0 → 1.0.0")
+        boundary = _git(work, "rev-parse", "HEAD")
+        _commit(work, "new.txt", "fix: the only new change")
+        code, result = _json(monkeypatch, capsys, "plan", "auto")
+        assert code == 0
+        assert result["auto"]["since"] == boundary
+        assert result["auto"]["level"] == "patch" and result["new_version"] == "1.0.1"
+
     def test_shallow_clone_without_the_last_release_fails(self, repo, tmp_path, monkeypatch, capsys):
         work, _ = repo
         _git(work, "tag", "v1.0.0", "HEAD~1")
