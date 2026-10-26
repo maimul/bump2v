@@ -11,11 +11,13 @@ Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Research behind it: [docs/research/
 None. Personal repo with no team board, so `/track-sync` does not apply.
 
 ## Now
+- T-022 1.8.0: `--sync`, `--retry N`, `--github-output`, `show` fails on a missing value, and the GitHub Action (`3d8ad7a`, `a6079af`). Release and confirm the Action workflow is green on all three OSes.
+- T-023 Team pilot, round 2 (after 1.8.0): one PR per repo moving the bump step to the Action with a concurrency group, building the version commit, a `bump2v check` step, and bumping only on the dev branch. Prepared by Claude; team-repo writes need the user to run them.
 - T-018 Remove the now-unused `BUMP2V` repo secret and `PYPI_API_TOKEN` environment from GitHub. Needs the user's OK (deletes credentials config).
 
 ## Next
+- T-014 Roadmap Phase 3, rest: GitLab component, pre-commit hook, Docker image, docs site, Marketplace listing, a moving `v1` tag for the Action.
 - T-013 Roadmap Phase 2: structured JSON/TOML/YAML/XML edits, presets, schemes and build counters, prereleases and environment-suffixed versions (`{version}-dev.{run}`, OCI-safe), tag-only targets, monorepo, hooks.
-- T-014 Roadmap Phase 3: GitHub Action (fetch to the branch tip, skip when the tip is already a version commit, `--retry` on a lost push race, outputs version/tag/sha/bumped), GitLab component, pre-commit hook, Docker image, docs site.
 - T-020 `check --unreleased` (refuse a version that is already published, for promotion to prod) and `check --branches dev,staging,main` (version drift across branches).
 - T-021 Decision: no stricter "HEAD is already a version commit" guard in 1.x. It would turn a green pipeline red when someone pushes a locally made version commit; the Action skips instead (bumped=false), and 2.0 can make it the default.
 - T-015 Roadmap Phase 4: agent skill, Claude plugin marketplace, MCP server, agent eval.
@@ -24,7 +26,7 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-003 The `testing` branch is stale (last commit at 1.1.16). Delete it once the user confirms.
 
 ## Blocked
-- T-009 Team pilot: one PR per repo pinning `bump2v>=1.6.2,<2` (approved). The 13 one-line changes are ready in local clones, but pushing to the team repos was blocked by the permission check. Unblocks: user (run the prepared script or allow the push). Further pipeline fixes and deleting stale tags need the user's OK.
+- T-009 Team pilot pin PRs: 12 of 13 open. The last one (a second dev branch in one repo) needs its own branch name; the user runs the command. Unblocks: user.
 
 ## Done
 - T-019 2026-10-26 1.7.1 on PyPI: branch and tag pushed atomically, so a rejected push leaves no orphan tag (`4572d22`; test fails on the old code). sync: —
