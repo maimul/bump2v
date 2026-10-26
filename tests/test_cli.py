@@ -23,7 +23,7 @@ def context():
 class TestCheckFilesContainVersion:
     def test_raises_when_version_missing(self, tmp_path, semver_config, context):
         f = tmp_path / "test.txt"
-        f.write_text("no version here")
+        f.write_text("no version here", encoding="utf-8")
         cf = ConfiguredFile(str(f), semver_config)
         version = semver_config.parse("1.0.0")
 
@@ -32,7 +32,7 @@ class TestCheckFilesContainVersion:
 
     def test_ignore_missing_does_not_raise(self, tmp_path, semver_config, context):
         f = tmp_path / "test.txt"
-        f.write_text("no version here")
+        f.write_text("no version here", encoding="utf-8")
         cf = ConfiguredFile(str(f), semver_config)
         version = semver_config.parse("1.0.0")
 
@@ -41,7 +41,7 @@ class TestCheckFilesContainVersion:
 
     def test_passes_when_version_present(self, tmp_path, semver_config, context):
         f = tmp_path / "test.txt"
-        f.write_text("current version is 1.0.0 here")
+        f.write_text("current version is 1.0.0 here", encoding="utf-8")
         cf = ConfiguredFile(str(f), semver_config)
         version = semver_config.parse("1.0.0")
 
@@ -50,9 +50,9 @@ class TestCheckFilesContainVersion:
 
     def test_ignore_missing_still_passes_found_files(self, tmp_path, semver_config, context):
         found = tmp_path / "found.txt"
-        found.write_text("version is 1.0.0")
+        found.write_text("version is 1.0.0", encoding="utf-8")
         missing = tmp_path / "missing.txt"
-        missing.write_text("no version here")
+        missing.write_text("no version here", encoding="utf-8")
 
         cf_found = ConfiguredFile(str(found), semver_config)
         cf_missing = ConfiguredFile(str(missing), semver_config)
@@ -154,9 +154,9 @@ def _run_core(tmp_path, monkeypatch, files, *args):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
     for name, text in files.items():
-        (tmp_path / name).write_text(text)
+        (tmp_path / name).write_text(text, encoding="utf-8")
     cli.main(list(args))
-    return {name: (tmp_path / name).read_text() for name in files}
+    return {name: (tmp_path / name).read_text(encoding="utf-8") for name in files}
 
 
 PYPROJECT = '''[project]
@@ -239,15 +239,15 @@ class TestConfigDiscovery:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
         assert cli._determine_config_file(None) == ".bumpversion.cfg"
-        (tmp_path / "setup.cfg").write_text("[metadata]\n")
+        (tmp_path / "setup.cfg").write_text("[metadata]\n", encoding="utf-8")
         assert cli._determine_config_file(None) == "setup.cfg"
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
         assert cli._determine_config_file(None) == "setup.cfg"
-        (tmp_path / "pyproject.toml").write_text('[tool.bumpversion]\ncurrent_version = "1.0.0"\n')
+        (tmp_path / "pyproject.toml").write_text('[tool.bumpversion]\ncurrent_version = "1.0.0"\n', encoding="utf-8")
         assert cli._determine_config_file(None) == "pyproject.toml"
-        (tmp_path / ".bumpversion.toml").write_text("")
+        (tmp_path / ".bumpversion.toml").write_text("", encoding="utf-8")
         assert cli._determine_config_file(None) == ".bumpversion.toml"
-        (tmp_path / ".bumpversion.cfg").write_text("")
+        (tmp_path / ".bumpversion.cfg").write_text("", encoding="utf-8")
         assert cli._determine_config_file(None) == ".bumpversion.cfg"
         monkeypatch.setenv("BUMP2V_CONFIG", "custom.cfg")
         assert cli._determine_config_file(None) == "custom.cfg"

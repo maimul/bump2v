@@ -12,7 +12,7 @@ def _write(root, files):
     for name, text in files.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
 
 
 def _init(monkeypatch, capsys, *args):
@@ -69,9 +69,9 @@ class TestInitCommand:
         code, result = _init(monkeypatch, capsys)
         assert code == 0 and result["created"] and result["current_version"] == "1.0.0"
         cli.main(["minor"])
-        assert (tmp_path / "pyproject.toml").read_text() == pyproject.replace(
+        assert (tmp_path / "pyproject.toml").read_text(encoding="utf-8") == pyproject.replace(
             'version = "1.0.0"', 'version = "1.1.0"', 1)
-        assert (tmp_path / "x/__init__.py").read_text() == '__version__ = "1.1.0"\n'
+        assert (tmp_path / "x/__init__.py").read_text(encoding="utf-8") == '__version__ = "1.1.0"\n'
 
     def test_existing_config_is_left_alone(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
@@ -79,7 +79,7 @@ class TestInitCommand:
         _write(tmp_path, {".bumpversion.cfg": "[bumpversion]\ncurrent_version = 9.9.9\n", "VERSION": "1.0.0\n"})
         code, result = _init(monkeypatch, capsys)
         assert code == 0 and not result["created"]
-        assert (tmp_path / ".bumpversion.cfg").read_text() == "[bumpversion]\ncurrent_version = 9.9.9\n"
+        assert (tmp_path / ".bumpversion.cfg").read_text(encoding="utf-8") == "[bumpversion]\ncurrent_version = 9.9.9\n"
 
     def test_nothing_to_manage_exits_4(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
@@ -94,19 +94,19 @@ class TestInitCommand:
         _write(tmp_path, {"VERSION": "1.0.0\n", "CLAUDE.md": "# Project\n"})
         code, result = _init(monkeypatch, capsys, "--agents")
         assert result["agents"] == {"file": "CLAUDE.md", "added": True}
-        text = (tmp_path / "CLAUDE.md").read_text()
+        text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert text.startswith("# Project\n\n## Releasing") and "bump2v release auto" in text
         assert not (tmp_path / "AGENTS.md").exists()
         code, result = _init(monkeypatch, capsys, "--agents")
         assert result["agents"]["added"] is False
-        assert (tmp_path / "CLAUDE.md").read_text() == text
+        assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == text
 
     def test_agents_section_creates_agents_md_otherwise(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
         _write(tmp_path, {"VERSION": "1.0.0\n"})
         _init(monkeypatch, capsys, "--agents")
-        assert (tmp_path / "AGENTS.md").read_text().startswith("## Releasing")
+        assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8").startswith("## Releasing")
 
     def test_unknown_argument_is_a_usage_error(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)

@@ -183,16 +183,17 @@ def repo(tmp_path, monkeypatch):
     _git(tmp_path, "init", "-q", "-b", "main", str(work))
     _git(work, "config", "user.name", "Test")
     _git(work, "config", "user.email", "test@example.com")
-    (work / "VERSION").write_text("1.0.0\n")
+    (work / "VERSION").write_text("1.0.0\n", encoding="utf-8")
     (work / ".bumpversion.cfg").write_text(
         "[bumpversion]\ncurrent_version = 1.0.0\ncommit = True\ntag = True\n\n"
-        "[bumpversion:file:VERSION]\n"
+        "[bumpversion:file:VERSION]\n",
+        encoding="utf-8",
     )
     _git(work, "add", ".")
     _git(work, "commit", "-q", "-m", "initial")
     _git(work, "remote", "add", "origin", str(remote))
     _git(work, "push", "-q", "-u", "origin", "main")
-    (work / "notes.txt").write_text("local work\n")
+    (work / "notes.txt").write_text("local work\n", encoding="utf-8")
     _git(work, "add", "notes.txt")
     _git(work, "commit", "-q", "-m", "local, not pushed")
     monkeypatch.chdir(work)
@@ -210,14 +211,14 @@ class TestPush:
         remote_head = _git(remote, "rev-parse", "main")
         _run(monkeypatch, "patch", "--dry-run")
         assert _git(remote, "rev-parse", "main") == remote_head
-        assert (work / "VERSION").read_text() == "1.0.0\n"
+        assert (work / "VERSION").read_text(encoding="utf-8") == "1.0.0\n"
 
     def test_no_commit_pushes_nothing(self, repo, monkeypatch):
         work, remote = repo
         remote_head = _git(remote, "rev-parse", "main")
         _run(monkeypatch, "patch", "--no-commit", "--no-tag")
         assert _git(remote, "rev-parse", "main") == remote_head
-        assert (work / "VERSION").read_text() == "1.0.1\n"
+        assert (work / "VERSION").read_text(encoding="utf-8") == "1.0.1\n"
 
     def test_bump_pushes_commit_and_tag(self, repo, monkeypatch):
         work, remote = repo
@@ -258,11 +259,11 @@ class TestPlan:
         assert result["files"] == [{"path": "VERSION", "changed": True, "matches": 1}]
         assert result["tag"]["name"] == "v1.1.0"
         assert _git(work, "status", "--porcelain") == ""
-        assert (work / "VERSION").read_text() == "1.0.0\n"
+        assert (work / "VERSION").read_text(encoding="utf-8") == "1.0.0\n"
 
     def test_plan_on_dirty_tree_fails_like_release_would(self, repo, monkeypatch, capsys):
         work, _ = repo
-        (work / "VERSION").write_text("1.0.0\nedited\n")
+        (work / "VERSION").write_text("1.0.0\nedited\n", encoding="utf-8")
         code, result = _json(monkeypatch, capsys, "plan", "patch")
         assert code == 3
         assert not result["ok"] and result["error"]["code"] == "dirty_tree"
@@ -270,7 +271,7 @@ class TestPlan:
     def test_plan_auto_reports_the_commits(self, repo, monkeypatch, capsys):
         work, _ = repo
         _git(work, "tag", "v1.0.0", "HEAD~1")
-        (work / "feature.txt").write_text("x\n")
+        (work / "feature.txt").write_text("x\n", encoding="utf-8")
         _git(work, "add", "feature.txt")
         _git(work, "commit", "-q", "-m", "feat: add a feature")
         code, result = _json(monkeypatch, capsys, "plan", "auto")
@@ -299,7 +300,7 @@ class TestRelease:
     def test_push_false_in_config_and_push_flag_override(self, repo, monkeypatch, capsys):
         work, remote = repo
         cfg = work / ".bumpversion.cfg"
-        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = True\npush = False\n"))
+        cfg.write_text(cfg.read_text(encoding="utf-8").replace("tag = True\n", "tag = True\npush = False\n"), encoding="utf-8")
         _git(work, "commit", "-q", "-am", "chore: no push")
         remote_head = _git(remote, "rev-parse", "main")
         code, result = _json(monkeypatch, capsys, "patch")
@@ -329,13 +330,14 @@ class TestRelease:
 
     def test_release_alone_still_bumps_a_part_named_release(self, repo, monkeypatch, capsys):
         work, _ = repo
-        (work / "VERSION").write_text("1.0.0-dev\n")
+        (work / "VERSION").write_text("1.0.0-dev\n", encoding="utf-8")
         (work / ".bumpversion.cfg").write_text(
             "[bumpversion]\ncurrent_version = 1.0.0-dev\n"
             "parse = (?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(-(?P<release>\\w+))?\n"
             "serialize =\n\t{major}.{minor}.{patch}-{release}\n\t{major}.{minor}.{patch}\n\n"
             "[bumpversion:part:release]\noptional_value = final\nvalues =\n\tdev\n\tfinal\n\n"
-            "[bumpversion:file:VERSION]\n"
+            "[bumpversion:file:VERSION]\n",
+            encoding="utf-8",
         )
         _git(work, "commit", "-q", "-am", "chore: release part")
         code, result = _json(monkeypatch, capsys, "release", "--no-push", "--no-tag")
@@ -360,7 +362,7 @@ class TestShowAndCheck:
 
     def test_check_reports_drift_with_exit_4(self, repo, monkeypatch, capsys):
         work, _ = repo
-        (work / "VERSION").write_text("1.0.9\n")
+        (work / "VERSION").write_text("1.0.9\n", encoding="utf-8")
         code, result = _json(monkeypatch, capsys, "check")
         assert code == 4 and result["error"]["code"] == "version_drift"
         assert result["files"] == [{"path": "VERSION", "found": False, "matches": 0, "ignored": False}]
@@ -379,7 +381,7 @@ class TestUsage:
 # --- auto: which commits count as new ---
 
 def _commit(work, name, message):
-    (work / name).write_text(message + "\n")
+    (work / name).write_text(message + "\n", encoding="utf-8")
     _git(work, "add", name)
     _git(work, "commit", "-q", "-m", message)
 
@@ -388,7 +390,7 @@ class TestAutoBoundary:
     def test_only_tags_that_tag_name_makes_count(self, repo, monkeypatch, capsys):
         work, _ = repo
         cfg = work / ".bumpversion.cfg"
-        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = True\ntag_name = baseline-v{new_version}\n"))
+        cfg.write_text(cfg.read_text(encoding="utf-8").replace("tag = True\n", "tag = True\ntag_name = baseline-v{new_version}\n"), encoding="utf-8")
         _git(work, "commit", "-q", "-am", "chore: baseline tags")
         _git(work, "tag", "baseline-v1.0.0")
         _commit(work, "a.txt", "feat: a feature")
@@ -401,7 +403,7 @@ class TestAutoBoundary:
     def test_without_tags_the_last_version_commit_is_the_boundary(self, repo, monkeypatch, capsys):
         work, _ = repo
         cfg = work / ".bumpversion.cfg"
-        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = False\n"))
+        cfg.write_text(cfg.read_text(encoding="utf-8").replace("tag = True\n", "tag = False\n"), encoding="utf-8")
         _git(work, "commit", "-q", "-am", "Bump version: 0.9.0 → 1.0.0")
         boundary = _git(work, "rev-parse", "HEAD")
         _commit(work, "a.txt", "feat: a feature")
@@ -414,7 +416,7 @@ class TestAutoBoundary:
         work, _ = repo
         _git(work, "tag", "v0.1.0", "HEAD~1")   # from before tagging was turned off
         cfg = work / ".bumpversion.cfg"
-        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = False\n"))
+        cfg.write_text(cfg.read_text(encoding="utf-8").replace("tag = True\n", "tag = False\n"), encoding="utf-8")
         _git(work, "commit", "-q", "-am", "chore: stop tagging releases")
         _commit(work, "old.txt", "feat!: an old breaking change, long released")
         _git(work, "commit", "-q", "--allow-empty", "-m", "Bump version: 0.9.0 → 1.0.0")
@@ -586,7 +588,7 @@ class TestGithubOutput:
         monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
         code, _ = _json(monkeypatch, capsys, "release", "patch", "--github-output")
         assert code == 0
-        outputs = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        outputs = dict(line.split("=", 1) for line in out_file.read_text(encoding="utf-8").splitlines())
         assert outputs == {"version": "1.0.1", "previous_version": "1.0.0", "tag": "v1.0.1",
                            "sha": _git(work, "rev-parse", "HEAD"), "bumped": "true", "pushed": "true"}
 
@@ -597,7 +599,7 @@ class TestGithubOutput:
         monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
         code, _ = _json(monkeypatch, capsys, "release", "patch", "--sync", "--github-output")
         assert code == 7
-        outputs = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        outputs = dict(line.split("=", 1) for line in out_file.read_text(encoding="utf-8").splitlines())
         assert outputs["version"] == "1.0.1" and outputs["bumped"] == "false"
 
 
@@ -605,14 +607,14 @@ class TestSkipCiGuardOutputs:
     def test_outputs_are_written_when_head_is_a_skip_ci_version_commit(self, ci_repo, tmp_path, monkeypatch, capsys):
         work, _ = ci_repo
         cfg = work / ".bumpversion.cfg"
-        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = True\nmessage = Version Updated: {current_version} → {new_version} [skip ci]\n"))
+        cfg.write_text(cfg.read_text(encoding="utf-8").replace("tag = True\n", "tag = True\nmessage = Version Updated: {current_version} → {new_version} [skip ci]\n"), encoding="utf-8")
         _git(work, "commit", "-q", "-am", "chore: skip ci in version commits")
         _json(monkeypatch, capsys, "release", "patch")
         out_file = tmp_path / "github_output"
         monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
         code, result = _json(monkeypatch, capsys, "release", "patch", "--github-output")
         assert code == 7 and result["error"]["code"] == "nothing_to_release"
-        outputs = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        outputs = dict(line.split("=", 1) for line in out_file.read_text(encoding="utf-8").splitlines())
         assert outputs["version"] == "1.0.1" and outputs["bumped"] == "false"
 
 

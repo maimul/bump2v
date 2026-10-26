@@ -10,7 +10,7 @@ def git_repo(tmp_path):
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True, capture_output=True)
-    (tmp_path / "README.md").write_text("hello")
+    (tmp_path / "README.md").write_text("hello", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True)
     return tmp_path
@@ -23,33 +23,33 @@ class TestAssertNondirty:
 
     def test_modified_file_raises(self, git_repo, monkeypatch):
         monkeypatch.chdir(git_repo)
-        (git_repo / "README.md").write_text("changed")
+        (git_repo / "README.md").write_text("changed", encoding="utf-8")
         with pytest.raises(WorkingDirectoryIsDirtyException):
             Git.assert_nondirty()
 
     def test_staged_file_raises(self, git_repo, monkeypatch):
         monkeypatch.chdir(git_repo)
-        (git_repo / "new.txt").write_text("new file")
+        (git_repo / "new.txt").write_text("new file", encoding="utf-8")
         subprocess.run(["git", "add", "new.txt"], cwd=git_repo, check=True, capture_output=True)
         with pytest.raises(WorkingDirectoryIsDirtyException):
             Git.assert_nondirty()
 
     def test_untracked_file_does_not_raise(self, git_repo, monkeypatch):
         monkeypatch.chdir(git_repo)
-        (git_repo / "untracked.txt").write_text("untracked")
+        (git_repo / "untracked.txt").write_text("untracked", encoding="utf-8")
         # Untracked files are always ignored by assert_nondirty
         Git.assert_nondirty()
 
     def test_allowed_path_exempts_modified_file(self, git_repo, monkeypatch):
         monkeypatch.chdir(git_repo)
-        (git_repo / "README.md").write_text("changed")
+        (git_repo / "README.md").write_text("changed", encoding="utf-8")
         # README.md is dirty but allowed — should not raise
         Git.assert_nondirty(allowed_paths=["README.md"])
 
     def test_allowed_path_still_raises_for_other_dirty_files(self, git_repo, monkeypatch):
         monkeypatch.chdir(git_repo)
-        (git_repo / "README.md").write_text("changed")
-        (git_repo / "other.txt").write_text("other")
+        (git_repo / "README.md").write_text("changed", encoding="utf-8")
+        (git_repo / "other.txt").write_text("other", encoding="utf-8")
         subprocess.run(["git", "add", "other.txt"], cwd=git_repo, check=True, capture_output=True)
         # README.md is allowed but other.txt (staged) is not
         with pytest.raises(WorkingDirectoryIsDirtyException):
@@ -57,8 +57,8 @@ class TestAssertNondirty:
 
     def test_multiple_allowed_paths(self, git_repo, monkeypatch):
         monkeypatch.chdir(git_repo)
-        (git_repo / "README.md").write_text("changed")
-        (git_repo / "CHANGELOG.md").write_text("new changelog")
+        (git_repo / "README.md").write_text("changed", encoding="utf-8")
+        (git_repo / "CHANGELOG.md").write_text("new changelog", encoding="utf-8")
         subprocess.run(["git", "add", "CHANGELOG.md"], cwd=git_repo, check=True, capture_output=True)
         # Both dirty files are allowed
         Git.assert_nondirty(allowed_paths=["README.md", "CHANGELOG.md"])

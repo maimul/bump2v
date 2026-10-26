@@ -151,6 +151,11 @@ them yourself before `bump2v patch|minor|major`. CI runs them in two places:
    Windows (Python 3.11 and the latest 3.x). Windows-only bugs (path separators, the console
    codepage) reached PyPI once when this job ran on Linux alone.
 
+Always pass `encoding="utf-8"` when code or tests read or write text (`open`, `read_text`,
+`write_text`, `subprocess(..., text=True)`): Windows otherwise uses the console codepage and
+breaks on `→`. CI's "Explicit text encodings" job fails on any default-encoding access; run it
+locally with `python -X warn_default_encoding -m pytest -q -W error::EncodingWarning`.
+
 Integration tests that commit, tag and push use a throwaway repo and a bare remote under
 `tmp_path`, with `GIT_CONFIG_GLOBAL` pointed at an empty file (see the `repo` fixture in
 `tests/test_auto.py`). Never let a test touch this repo's own git state.
