@@ -352,3 +352,67 @@ class TestUsage:
     def test_help_exits_0(self, monkeypatch, capsys):
         code, out, _ = _cli(monkeypatch, capsys, "--help")
         assert code == 0 and "exit codes" in out
+
+
+# --- auto: which commits count as new ---
+
+def _commit(work, name, message):
+    (work / name).write_text(message + "\n")
+    _git(work, "add", name)
+    _git(work, "commit", "-q", "-m", message)
+
+
+class TestAutoBoundary:
+    def test_only_tags_that_tag_name_makes_count(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        cfg = work / ".bumpversion.cfg"
+        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = True\ntag_name = baseline-v{new_version}\n"))
+        _git(work, "commit", "-q", "-am", "chore: baseline tags")
+        _git(work, "tag", "baseline-v1.0.0")
+        _commit(work, "a.txt", "feat: a feature")
+        _git(work, "tag", "deploy-2026-10-26")  # someone else's tag, newer
+        _commit(work, "b.txt", "fix: a fix")
+        code, result = _json(monkeypatch, capsys, "plan", "auto")
+        assert code == 0
+        assert result["auto"]["since"] == "baseline-v1.0.0" and result["auto"]["level"] == "minor"
+
+    def test_without_tags_the_last_version_commit_is_the_boundary(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        cfg = work / ".bumpversion.cfg"
+        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = False\n"))
+        _git(work, "commit", "-q", "-am", "Bump version: 0.9.0 → 1.0.0")
+        boundary = _git(work, "rev-parse", "HEAD")
+        _commit(work, "a.txt", "feat: a feature")
+        code, result = _json(monkeypatch, capsys, "plan", "auto")
+        assert code == 0
+        assert result["auto"]["since"] == boundary and result["auto"]["level"] == "minor"
+        assert [c["subject"] for c in result["auto"]["commits"]] == ["feat: a feature"]
+
+    def test_shallow_clone_without_the_last_release_fails(self, repo, tmp_path, monkeypatch, capsys):
+        work, _ = repo
+        _git(work, "tag", "v1.0.0", "HEAD~1")
+        _commit(work, "a.txt", "feat: a feature")
+        clone = tmp_path / "shallow"
+        _git(tmp_path, "clone", "-q", "--depth", "1", "--no-tags", work.as_uri(), str(clone))
+        monkeypatch.chdir(clone)
+        code, result = _json(monkeypatch, capsys, "plan", "auto")
+        assert code == 1 and result["error"]["code"] == "shallow_clone"
+        assert "fetch-depth: 0" in result["error"]["hint"]
+
+
+class TestCiIdentity:
+    def test_commits_as_the_actions_bot_when_git_has_no_identity(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        _git(work, "config", "--unset", "user.name")
+        _git(work, "config", "--unset", "user.email")
+        for key in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"):
+            # setenv then delenv: monkeypatch records the key as absent, so whatever
+            # bump2v sets with os.environ.setdefault is removed after the test.
+            monkeypatch.setenv(key, "x")
+            monkeypatch.delenv(key)
+        monkeypatch.setenv("CI", "true")
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        code, result = _json(monkeypatch, capsys, "patch", "--no-push")
+        assert code == 0
+        assert _git(work, "log", "-1", "--format=%an <%ae>") == \
+            "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"

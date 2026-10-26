@@ -181,9 +181,12 @@ Semantic Versioning
 Auto mode (Conventional Commits)
 ---------------------------------
 
-``bump2v auto`` analyzes every commit since the last git tag using the
+``bump2v auto`` analyzes every commit since the last release using the
 `Conventional Commits <https://www.conventionalcommits.org>`_ spec and
-selects the bump level automatically. No more guessing whether this week's
+selects the bump level automatically. The last release is the newest tag your
+``tag_name`` could have made (``baseline-v{new_version}`` -> tags matching
+``baseline-v*``), or, with ``tag = False``, the last commit whose subject
+matches your ``message``. No more guessing whether this week's
 work is a patch or a minor.
 
 **Rules:**
@@ -210,9 +213,10 @@ work is a patch or a minor.
     Bumping to version: 2.0.0
 
 If no conventional commits are found, bumps patch as a safe fallback.
-With no tags yet it bumps patch. With no commits since the latest tag it
-stops with exit code 7. In CI, check out the full history (``fetch-depth: 0``
-in GitHub Actions) so the tags and commits are there. Preview with
+With no earlier release it bumps patch. With nothing new since the last
+release it stops with exit code 7. In CI, check out the full history
+(``fetch-depth: 0`` in GitHub Actions); a shallow clone that hides the last
+release fails with exit code 1 instead of guessing. Preview with
 ``bump2v plan auto``.
 
 -----------
@@ -229,12 +233,11 @@ In CI pipelines
             id: bump
             run: |
               pip install "bump2v>=1.7,<2"
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
               bump2v release auto
               echo "version=$(bump2v show current_version)" >> "$GITHUB_OUTPUT"
 
 - Pin a version range (``bump2v>=1.7,<2``) so a new major release can't change your pipeline.
+- When git has no user set and ``CI`` is set, bump2v commits as ``github-actions[bot]`` on GitHub Actions (or ``bump2v`` elsewhere), so no ``git config`` step is needed.
 - ``bump2v show current_version`` prints just the version; no need to grep the config.
 - ``bump2v release auto --json`` returns the old and new version, files, commit SHA, tag and push result in one object.
 - ``--no-push`` commits and tags without pushing, for jobs that push later or not at all.

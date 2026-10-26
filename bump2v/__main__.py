@@ -119,34 +119,75 @@ def _git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True)
 
 
-def _detect_bump_level():
-    """
-    Analyze git commits since the last tag using Conventional Commits.
+_PLACEHOLDER = re.compile(r"\{[^}]*\}")
 
-    Returns a dict: level ('major' | 'minor' | 'patch'), since (the tag, or None),
-    commits (list of {subject, level}) and conventional (whether any commit
-    followed the spec). Raises Failure when there is nothing new to release.
+
+def _template_glob(template):
+    """tag_name -> a git glob for the tags it makes: baseline-v{new_version} -> baseline-v*."""
+    return _PLACEHOLDER.sub("*", template)
+
+
+def _template_regex(template):
+    """A commit message template -> a regex for the subjects it makes."""
+    parts = _PLACEHOLDER.split(template)
+    return re.compile("^" + ".+?".join(re.escape(part) for part in parts) + "$")
+
+
+def _last_release(config):
+    """Where the last release was: the newest tag that tag_name could have made, or
+    else the last commit whose subject matches the version commit message (for
+    configs with tag = False). Returns (ref, label) or (None, None)."""
+    tag_glob = _template_glob(config.get("tag_name", "v{new_version}"))
+    describe = _git("describe", "--tags", "--abbrev=0", "--match", tag_glob)
+    if describe.returncode == 0:
+        tag = describe.stdout.strip()
+        return tag, tag
+
+    message = config.get("message", "Bump version: {current_version} → {new_version}")
+    subject = _template_regex(message.strip().splitlines()[0])
+    for line in _git("log", "--format=%H%x00%s").stdout.splitlines():
+        sha, _, commit_subject = line.partition("\x00")
+        if subject.match(commit_subject):
+            return sha, f"the last version commit ({sha[:7]})"
+    return None, None
+
+
+def _detect_bump_level(args=()):
     """
-    describe = _git("describe", "--tags", "--abbrev=0")
-    if describe.returncode != 0:
+    Analyze git commits since the last release using Conventional Commits.
+
+    Returns a dict: level ('major' | 'minor' | 'patch'), since (the tag or commit,
+    or None), commits (list of {subject, level}) and conventional (whether any
+    commit followed the spec). Raises Failure when there is nothing new to release,
+    or when a shallow clone hides the last release.
+    """
+    since, label = _last_release(_light_config(list(args)))
+    if since is None:
+        if _git("rev-parse", "--is-shallow-repository").stdout.strip() == "true":
+            raise Failure(
+                EXIT_ERROR, "shallow_clone",
+                "This is a shallow clone, so the last release can't be found and `auto` "
+                "can't tell which commits are new.",
+                hint="Fetch the full history: actions/checkout with fetch-depth: 0, "
+                     "or git fetch --unshallow --tags.",
+            )
         return {"level": "patch", "since": None, "commits": [], "conventional": False}
-    last_tag = describe.stdout.strip()
 
-    log = _git("log", f"{last_tag}..HEAD", "--format=%B%x00")
+    log = _git("log", f"{since}..HEAD", "--format=%B%x00")
     if log.returncode != 0:
-        return {"level": "patch", "since": last_tag, "commits": [], "conventional": False}
+        return {"level": "patch", "since": since, "commits": [], "conventional": False}
 
     messages = [m.strip() for m in log.stdout.split("\x00") if m.strip()]
     if not messages:
         raise Failure(
             EXIT_NOTHING_TO_RELEASE, "nothing_to_release",
-            f"No commits since {last_tag}. Nothing to bump.",
+            f"No commits since {label}. Nothing to bump.",
         )
 
     level, rows, found_conventional = _classify_commits(messages)
     return {
         "level": level,
-        "since": last_tag,
+        "since": since,
         "commits": [{"subject": subject, "level": detected} for subject, detected in rows],
         "conventional": found_conventional,
     }
@@ -157,7 +198,9 @@ def _report_auto(out, auto):
     if auto["since"] is None:
         out.say("No tags found -- defaulting to patch.")
         return
-    out.say(f"Analyzing commits since {auto['since']}...\n")
+    since = auto["since"]
+    shown = since if not re.fullmatch(r"[0-9a-f]{40}", since) else f"the last version commit ({since[:7]})"
+    out.say(f"Analyzing commits since {shown}...\n")
     for commit in auto["commits"]:
         summary = commit["subject"]
         short = (summary[:62] + "...") if len(summary) > 65 else summary
@@ -204,22 +247,31 @@ def _positional_indexes(args):
     return indexes
 
 
-def _part_names(args):
-    """The version part names the config's `parse` regex defines (major, minor, patch, ...)."""
+def _light_config(args):
+    """The [bumpversion] options as strings, read without the full core (which needs
+    the part to bump). Empty if there is no readable config."""
     explicit = None
     if "--config-file" in args and args.index("--config-file") + 1 < len(args):
         explicit = args[args.index("--config-file") + 1]
-    parse = r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
     try:
         config_file = core._determine_config_file(explicit)
         if config_file.endswith(".toml"):
-            parse = (core._toml_table(config_file) or {}).get("parse", parse)
-        else:
-            config = configparser.RawConfigParser()
-            config.read(config_file, encoding="utf-8-sig")
-            parse = config.get("bumpversion", "parse", fallback=parse)
+            table = core._toml_table(config_file) or {}
+            return {key: core._toml_value(value) for key, value in table.items()
+                    if key not in ("files", "parts") and not isinstance(value, dict)}
+        config = configparser.RawConfigParser()
+        config.read(config_file, encoding="utf-8-sig")
+        return dict(config.items("bumpversion")) if config.has_section("bumpversion") else {}
+    except (configparser.Error, OSError, ValueError):
+        return {}
+
+
+def _part_names(args):
+    """The version part names the config's `parse` regex defines (major, minor, patch, ...)."""
+    parse = _light_config(args).get("parse", r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)")
+    try:
         return set(re.compile(parse, re.VERBOSE).groupindex)
-    except (configparser.Error, re.error, OSError, ValueError):
+    except re.error:
         return {"major", "minor", "patch"}
 
 
@@ -244,7 +296,7 @@ def _resolve_auto(args, out):
     """Replace a positional `auto` with the level Conventional Commits point to."""
     for i in _positional_indexes(args):
         if args[i] == "auto":
-            auto = _detect_bump_level()
+            auto = _detect_bump_level(args)
             _report_auto(out, auto)
             return args[:i] + [auto["level"]] + args[i + 1:], auto
         break
@@ -284,6 +336,21 @@ def _core_call(function, *args):
 def _first_positional(args):
     indexes = _positional_indexes(args)
     return args[indexes[0]] if indexes else None
+
+
+def _ensure_ci_identity():
+    """In CI, commit as the CI's bot when git has no identity, instead of failing
+    with 'Please tell me who you are'."""
+    if not os.environ.get("CI") or _git("config", "user.email").stdout.strip():
+        return
+    if os.environ.get("GITHUB_ACTIONS"):
+        name, email = "github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"
+    else:
+        name, email = "bump2v", "bump2v@users.noreply.github.com"
+    for key in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        os.environ.setdefault(key, name)
+    for key in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        os.environ.setdefault(key, email)
 
 
 def _push_enabled(plan, opts):
@@ -397,6 +464,7 @@ def cmd_bump(args, opts, out):
 
     out.say(f"Bumping to version: {plan.args.new_version}",
             f"📦 Bumping to version: {plan.args.new_version}")
+    _ensure_ci_identity()
     before = _git_state()
     _core_call(core.apply_plan, plan)
     after = _git_state()
