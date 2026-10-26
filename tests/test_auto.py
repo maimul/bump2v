@@ -202,3 +202,153 @@ class TestPush:
         _run(monkeypatch, "patch")
         assert _git(remote, "rev-parse", "main") == _git(work, "rev-parse", "HEAD")
         assert _git(remote, "tag", "--list") == "v1.0.1"
+
+
+# --- subcommands, --json and exit codes ---
+
+import json
+
+
+def _cli(monkeypatch, capsys, *args):
+    """Run bump2v with args; return (exit code, stdout, stderr)."""
+    monkeypatch.setattr(sys, "argv", ["bump2v", *args])
+    code = 0
+    try:
+        bump2v_main.main()
+    except SystemExit as e:
+        code = e.code
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+def _json(monkeypatch, capsys, *args):
+    code, out, _ = _cli(monkeypatch, capsys, *args, "--json")
+    return code, json.loads(out)
+
+
+class TestPlan:
+    def test_plan_json_describes_the_bump_and_writes_nothing(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        code, result = _json(monkeypatch, capsys, "plan", "minor")
+        assert code == 0
+        assert result["ok"] and result["command"] == "plan" and result["format_version"] == "1.0"
+        assert (result["current_version"], result["new_version"]) == ("1.0.0", "1.1.0")
+        assert result["files"] == [{"path": "VERSION", "changed": True, "matches": 1}]
+        assert result["tag"]["name"] == "v1.1.0"
+        assert _git(work, "status", "--porcelain") == ""
+        assert (work / "VERSION").read_text() == "1.0.0\n"
+
+    def test_plan_on_dirty_tree_fails_like_release_would(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        (work / "VERSION").write_text("1.0.0\nedited\n")
+        code, result = _json(monkeypatch, capsys, "plan", "patch")
+        assert code == 3
+        assert not result["ok"] and result["error"]["code"] == "dirty_tree"
+
+    def test_plan_auto_reports_the_commits(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        _git(work, "tag", "v1.0.0", "HEAD~1")
+        (work / "feature.txt").write_text("x\n")
+        _git(work, "add", "feature.txt")
+        _git(work, "commit", "-q", "-m", "feat: add a feature")
+        code, result = _json(monkeypatch, capsys, "plan", "auto")
+        assert code == 0
+        assert result["auto"]["level"] == "minor" and result["auto"]["since"] == "v1.0.0"
+        assert result["new_version"] == "1.1.0"
+
+    def test_auto_with_nothing_since_the_tag_exits_7(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        _git(work, "tag", "v1.0.0")
+        code, result = _json(monkeypatch, capsys, "plan", "auto")
+        assert code == 7 and result["error"]["code"] == "nothing_to_release"
+
+
+class TestRelease:
+    def test_release_no_push_commits_and_tags_locally(self, repo, monkeypatch, capsys):
+        work, remote = repo
+        remote_head = _git(remote, "rev-parse", "main")
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--no-push")
+        assert code == 0 and result["command"] == "release"
+        assert result["commit"]["sha"] == _git(work, "rev-parse", "HEAD")
+        assert result["tag"] == {"enabled": True, "name": "v1.0.1", "created": True}
+        assert result["push"] == {"enabled": False, "pushed": False}
+        assert _git(remote, "rev-parse", "main") == remote_head
+
+    def test_push_false_in_config_and_push_flag_override(self, repo, monkeypatch, capsys):
+        work, remote = repo
+        cfg = work / ".bumpversion.cfg"
+        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = True\npush = False\n"))
+        _git(work, "commit", "-q", "-am", "chore: no push")
+        remote_head = _git(remote, "rev-parse", "main")
+        code, result = _json(monkeypatch, capsys, "patch")
+        assert code == 0 and not result["push"]["pushed"]
+        assert _git(remote, "rev-parse", "main") == remote_head
+        code, result = _json(monkeypatch, capsys, "patch", "--push")
+        assert code == 0 and result["push"]["pushed"]
+        assert _git(remote, "rev-parse", "main") == _git(work, "rev-parse", "HEAD")
+
+    def test_existing_tag_fails_before_anything_is_written(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        _git(work, "tag", "v1.0.1")
+        head = _git(work, "rev-parse", "HEAD")
+        code, result = _json(monkeypatch, capsys, "patch")
+        assert code == 5 and result["error"]["code"] == "tag_exists"
+        assert _git(work, "rev-parse", "HEAD") == head
+        assert _git(work, "status", "--porcelain") == ""
+
+    def test_detached_head_keeps_the_commit_and_exits_6(self, repo, monkeypatch, capsys):
+        work, remote = repo
+        _git(work, "checkout", "-q", "--detach")
+        remote_head = _git(remote, "rev-parse", "main")
+        code, result = _json(monkeypatch, capsys, "patch")
+        assert code == 6 and result["error"]["code"] == "detached_head"
+        assert _git(work, "log", "-1", "--format=%s").startswith("Bump version: 1.0.0")
+        assert _git(remote, "rev-parse", "main") == remote_head
+
+    def test_release_alone_still_bumps_a_part_named_release(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        (work / "VERSION").write_text("1.0.0-dev\n")
+        (work / ".bumpversion.cfg").write_text(
+            "[bumpversion]\ncurrent_version = 1.0.0-dev\n"
+            "parse = (?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(-(?P<release>\\w+))?\n"
+            "serialize =\n\t{major}.{minor}.{patch}-{release}\n\t{major}.{minor}.{patch}\n\n"
+            "[bumpversion:part:release]\noptional_value = final\nvalues =\n\tdev\n\tfinal\n\n"
+            "[bumpversion:file:VERSION]\n"
+        )
+        _git(work, "commit", "-q", "-am", "chore: release part")
+        code, result = _json(monkeypatch, capsys, "release", "--no-push", "--no-tag")
+        assert code == 0 and result["command"] == "bump"
+        assert result["new_version"] == "1.0.0"
+
+
+class TestShowAndCheck:
+    def test_show_prints_a_single_field(self, repo, monkeypatch, capsys):
+        code, out, _ = _cli(monkeypatch, capsys, "show", "current_version")
+        assert code == 0 and out == "1.0.0\n"
+        code, out, _ = _cli(monkeypatch, capsys, "show", "next.minor")
+        assert out == "1.1.0\n"
+
+    def test_show_unknown_field_is_a_usage_error(self, repo, monkeypatch, capsys):
+        code, _, err = _cli(monkeypatch, capsys, "show", "nope")
+        assert code == 2 and "Unknown field" in err
+
+    def test_check_passes_when_files_match(self, repo, monkeypatch, capsys):
+        code, result = _json(monkeypatch, capsys, "check")
+        assert code == 0 and result["files"][0]["found"]
+
+    def test_check_reports_drift_with_exit_4(self, repo, monkeypatch, capsys):
+        work, _ = repo
+        (work / "VERSION").write_text("1.0.9\n")
+        code, result = _json(monkeypatch, capsys, "check")
+        assert code == 4 and result["error"]["code"] == "version_drift"
+        assert result["files"] == [{"path": "VERSION", "found": False, "matches": 0, "ignored": False}]
+
+
+class TestUsage:
+    def test_no_arguments_prints_usage_and_exits_2(self, monkeypatch, capsys):
+        code, _, err = _cli(monkeypatch, capsys)
+        assert code == 2 and "usage: bump2v" in err
+
+    def test_help_exits_0(self, monkeypatch, capsys):
+        code, out, _ = _cli(monkeypatch, capsys, "--help")
+        assert code == 0 and "exit codes" in out

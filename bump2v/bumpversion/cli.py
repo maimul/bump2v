@@ -115,14 +115,27 @@ def _handle_tag_only(known_args):
     sys.exit(1)
 
 
-class Plan:
+class Settings:
+    """The parsed arguments, the config and the current version. Built by load_settings()."""
+
+    def __init__(self, **fields):
+        self.__dict__.update(fields)
+
+
+class Plan(Settings):
     """Everything a bump will do, worked out before anything is written.
 
     Built by compute_plan(), carried out by apply_plan().
     """
 
-    def __init__(self, **fields):
-        self.__dict__.update(fields)
+    def vcs_context(self):
+        return _vcs_context(self.args, self.current_version, self.new_version)
+
+    def commit_message(self):
+        return self.args.message.format(**self.vcs_context())
+
+    def tag_name(self):
+        return self.args.tag_name.format(**self.vcs_context())
 
 
 def main(original_args=None):
@@ -145,7 +158,14 @@ def compute_plan(original_args=None):
     return _compute_plan(args, known_args, root_parser, positionals)
 
 
-def _compute_plan(args, known_args, root_parser, positionals):
+def load_settings(original_args=None):
+    """Parse the arguments and config without computing a new version (no part needed)."""
+    args, known_args, root_parser, positionals = _parse_arguments_phase_1(original_args)
+    _setup_logging(known_args.list, known_args.verbose)
+    return _load_settings(args, known_args, root_parser, positionals)
+
+
+def _load_settings(args, known_args, root_parser, positionals):
     vcs_info = _determine_vcs_usability()
     defaults = _determine_current_version(vcs_info)
     explicit_config = None
@@ -160,11 +180,37 @@ def _compute_plan(args, known_args, root_parser, positionals):
     )
     version_config = _setup_versionconfig(known_args, part_configs)
     current_version = version_config.parse(known_args.current_version)
+    return Settings(
+        args=args,
+        known_args=known_args,
+        positionals=positionals,
+        vcs_info=vcs_info,
+        defaults=defaults,
+        config_file=config_file,
+        config=config,
+        config_file_exists=config_file_exists,
+        config_newlines=config_newlines,
+        part_configs=part_configs,
+        files=files,
+        parser2=parser2,
+        remaining_argv=remaining_argv,
+        version_config=version_config,
+        current_version=current_version,
+    )
+
+
+def _compute_plan(args, known_args, root_parser, positionals):
+    s = _load_settings(args, known_args, root_parser, positionals)
+    known_args, defaults, version_config = s.known_args, s.defaults, s.version_config
+    current_version, files, config = s.current_version, s.files, s.config
+    config_file, config_file_exists, config_newlines = (
+        s.config_file, s.config_file_exists, s.config_newlines,
+    )
     context = dict(
         itertools.chain(
             time_context.items(),
             prefixed_environ().items(),
-            vcs_info.items(),
+            s.vcs_info.items(),
             special_char_context.items(),
         )
     )
@@ -172,7 +218,7 @@ def _compute_plan(args, known_args, root_parser, positionals):
     new_version = _assemble_new_version(
         context, current_version, defaults, known_args.current_version, positionals, version_config
     )
-    args, file_names = _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2)
+    args, file_names = _parse_arguments_phase_3(s.remaining_argv, positionals, defaults, s.parser2)
     new_version = _parse_new_version(args, new_version, version_config)
 
     if args.no_configured_files:
@@ -405,7 +451,7 @@ def _load_configuration(config_file, explicit_config, defaults):
             pass
 
     for boolvaluename in ("commit", "tag", "dry_run", "sign_tags", "ignore_missing_version",
-                          "replace_all"):
+                          "replace_all", "push"):
         try:
             defaults[boolvaluename] = config.getboolean(
                 "bumpversion", boolvaluename
@@ -791,6 +837,20 @@ def _compute_config_update(config, config_file, config_newlines, config_file_exi
     return text, FileChange(config_file, before, text.replace("\n", newline), had_bom)
 
 
+def _vcs_context(args, current_version, new_version):
+    """Template context for the commit message, tag name and tag message."""
+    context = {
+        "current_version": args.current_version,
+        "new_version": args.new_version,
+    }
+    context.update(time_context)
+    context.update(prefixed_environ())
+    context.update({'current_' + part: current_version[part].value for part in current_version})
+    context.update({'new_' + part: new_version[part].value for part in new_version})
+    context.update(special_char_context)
+    return context
+
+
 def _commit_to_vcs(files, context, config_file, config_file_exists, vcs, args,
                    current_version, new_version):
     commit_files = [f.path for f in files]
@@ -828,16 +888,7 @@ def _commit_to_vcs(files, context, config_file, config_file_exists, vcs, args,
         if do_commit:
             vcs.add_extra_path(path)
 
-    context = {
-        "current_version": args.current_version,
-        "new_version": args.new_version,
-    }
-    context.update(time_context)
-    context.update(prefixed_environ())
-    context.update({'current_' + part: current_version[part].value for part in current_version})
-    context.update({'new_' + part: new_version[part].value for part in new_version})
-    context.update(special_char_context)
-
+    context = _vcs_context(args, current_version, new_version)
     commit_message = args.message.format(**context)
 
     logger.info(
