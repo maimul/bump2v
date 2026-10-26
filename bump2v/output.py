@@ -19,7 +19,7 @@ EXIT_NOTHING_TO_RELEASE = 7
 
 # Bump this when the --json shape changes: minor for added fields, major for
 # removed or renamed ones.
-FORMAT_VERSION = "1.0"
+FORMAT_VERSION = "1.1"
 
 
 class Failure(Exception):
@@ -93,6 +93,8 @@ class Output:
                 },
                 indent=2,
             ))
+        elif failure.exit_code == EXIT_NOTHING_TO_RELEASE:
+            self.say(failure.message)  # an outcome, not an error
         else:
             self.say(
                 "error: {}".format(failure.message),

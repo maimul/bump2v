@@ -231,7 +231,7 @@ class TestPlan:
         work, _ = repo
         code, result = _json(monkeypatch, capsys, "plan", "minor")
         assert code == 0
-        assert result["ok"] and result["command"] == "plan" and result["format_version"] == "1.0"
+        assert result["ok"] and result["command"] == "plan" and result["format_version"] == "1.1"
         assert (result["current_version"], result["new_version"]) == ("1.0.0", "1.1.0")
         assert result["files"] == [{"path": "VERSION", "changed": True, "matches": 1}]
         assert result["tag"]["name"] == "v1.1.0"
@@ -428,7 +428,7 @@ class TestAtomicPush:
         _commit(other, "other.txt", "fix: pushed first by another run")
         _git(other, "push", "-q")
         code, result = _json(monkeypatch, capsys, "patch")
-        assert code == 6 and result["error"]["code"] == "push_failed" and result["error"]["retryable"]
+        assert code == 6 and result["error"]["code"] == "push_rejected" and result["error"]["retryable"]
         assert _git(remote, "tag", "--list") == ""
         assert _git(work, "tag", "--list") == "v1.0.1"  # still there locally to push later
 
@@ -446,6 +446,126 @@ class TestAtomicPush:
             return Result(0)
 
         monkeypatch.setattr(bump2v_main.subprocess, "run", run)
-        assert bump2v_main._push_branch_and_tags()
+        assert bump2v_main._push_branch_and_tags() == (True, False)
         assert calls == [["git", "push", "--atomic", "--follow-tags"], ["git", "push"],
                          ["git", "push", "--follow-tags"]]
+
+
+# --- CI: --sync, --retry, --github-output ---
+
+def _push_from_other_clone(tmp_path, remote, message, name="other"):
+    other = tmp_path / name
+    if not other.exists():
+        _git(tmp_path, "clone", "-q", str(remote), str(other))
+        _git(other, "config", "user.name", "Other")
+        _git(other, "config", "user.email", "other@example.com")
+    else:
+        _git(other, "pull", "-q")
+    count = len(list(other.glob("other-*.txt")))
+    _commit(other, f"other-{count}.txt", message)
+    _git(other, "push", "-q")
+    return other
+
+
+@pytest.fixture
+def ci_repo(repo, monkeypatch):
+    """The repo fixture as CI sees it: nothing unpushed, checked out at the pushed commit."""
+    work, remote = repo
+    _git(work, "push", "-q")
+    return work, remote
+
+
+class TestSync:
+    def test_sync_bumps_from_the_remote_tip(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, remote = ci_repo
+        _push_from_other_clone(tmp_path, remote, "fix: landed while this run was queued")
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--sync")
+        assert code == 0 and result["push"]["pushed"]
+        assert _git(remote, "log", "-1", "--format=%s", "main").startswith("Bump version: 1.0.0")
+        assert "fix: landed while this run was queued" in _git(remote, "log", "--format=%s", "main")
+
+    def test_sync_stops_when_the_tip_is_already_a_version_commit(self, ci_repo, monkeypatch, capsys):
+        work, remote = ci_repo
+        code, _ = _json(monkeypatch, capsys, "release", "patch", "--sync")
+        assert code == 0
+        _git(work, "reset", "-q", "--hard", "HEAD~1")   # a stale checkout of the same branch
+        _git(work, "tag", "-d", "v1.0.1")
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--sync")
+        assert code == 7 and result["error"]["code"] == "already_released"
+        assert _git(remote, "tag", "--list") == "v1.0.1"
+
+    def test_sync_refuses_a_diverged_branch(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, remote = ci_repo
+        _push_from_other_clone(tmp_path, remote, "fix: remote work")
+        _commit(work, "local.txt", "fix: local work")
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--sync")
+        assert code == 1 and result["error"]["code"] == "diverged"
+        assert _git(work, "log", "-1", "--format=%s") == "fix: local work"
+
+
+class TestRetry:
+    def test_lost_race_is_retried_from_the_new_tip(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, remote = ci_repo
+        real_push = bump2v_main._push_branch_and_tags
+        calls = []
+
+        def push_after_someone_else():
+            calls.append(1)
+            if len(calls) == 1:   # another run lands between our bump and our push
+                _push_from_other_clone(tmp_path, remote, "fix: the other run")
+            return real_push()
+
+        monkeypatch.setattr(bump2v_main, "_push_branch_and_tags", push_after_someone_else)
+        monkeypatch.setattr(bump2v_main.time, "sleep", lambda seconds: None)
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--retry", "2")
+        assert code == 0 and result["attempts"] == 2 and result["push"]["pushed"]
+        log = _git(remote, "log", "--format=%s", "main").splitlines()
+        assert log[0].startswith("Bump version: 1.0.0") and log[1] == "fix: the other run"
+        assert _git(remote, "tag", "--list") == "v1.0.1"
+
+    def test_retry_gives_up_after_n_attempts(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, remote = ci_repo
+        real_push = bump2v_main._push_branch_and_tags
+
+        def always_beaten():
+            _push_from_other_clone(tmp_path, remote, "fix: yet another run")
+            return real_push()
+
+        monkeypatch.setattr(bump2v_main, "_push_branch_and_tags", always_beaten)
+        monkeypatch.setattr(bump2v_main.time, "sleep", lambda seconds: None)
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--retry=1")
+        assert code == 6 and result["error"]["code"] == "push_rejected"
+        assert _git(remote, "tag", "--list") == ""
+
+    def test_retry_needs_a_number(self, ci_repo, monkeypatch, capsys):
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--retry", "lots")
+        assert code == 2 and result["error"]["code"] == "usage"
+
+
+class TestGithubOutput:
+    def test_outputs_after_a_release(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, _ = ci_repo
+        out_file = tmp_path / "github_output"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
+        code, _ = _json(monkeypatch, capsys, "release", "patch", "--github-output")
+        assert code == 0
+        outputs = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        assert outputs == {"version": "1.0.1", "previous_version": "1.0.0", "tag": "v1.0.1",
+                           "sha": _git(work, "rev-parse", "HEAD"), "bumped": "true", "pushed": "true"}
+
+    def test_outputs_when_there_is_nothing_to_release(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, _ = ci_repo
+        _json(monkeypatch, capsys, "release", "patch")
+        out_file = tmp_path / "github_output"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
+        code, _ = _json(monkeypatch, capsys, "release", "patch", "--sync", "--github-output")
+        assert code == 7
+        outputs = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        assert outputs["version"] == "1.0.1" and outputs["bumped"] == "false"
+
+
+def test_show_fails_loudly_without_a_version(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
+    code, _, err = _cli(monkeypatch, capsys, "show", "current_version")
+    assert code == 4 and "current_version is not set" in err

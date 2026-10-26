@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 from bump2v.bumpversion import cli as core
 from bump2v.bumpversion.exceptions import (
@@ -48,6 +49,12 @@ options:
   --json        print one JSON result on stdout (messages stay on stderr)
   --no-push     commit and tag, but don't push (also: push = False in the config)
   --push        push even if the config says push = False
+  --sync        first fast-forward to the remote branch tip; stop (exit 7) if the
+                tip is already a version commit. For CI, where runs overlap
+  --retry N     if another run pushed first, drop this run's version commit and
+                tag, sync and bump again, up to N more times (implies --sync)
+  --github-output  write version, previous_version, tag, sha, bumped and pushed
+                to $GITHUB_OUTPUT (also when there is nothing to release)
   --dry-run     change nothing; same as `plan`
   bump2v <part> --help lists every bumpversion option (--config-file,
   --allow-dirty, --no-commit, --no-tag, --new-version, ...)
@@ -219,17 +226,31 @@ def _git_state():
 
 # --- argument handling -------------------------------------------------------
 
-_OWN_FLAGS = {"--json": ("json", True), "--push": ("push", True), "--no-push": ("push", False)}
+_OWN_FLAGS = {
+    "--json": ("json", True),
+    "--push": ("push", True),
+    "--no-push": ("push", False),
+    "--sync": ("sync", True),
+    "--github-output": ("github_output", True),
+}
 
 
 def _own_flags(argv):
     """Take bump2v's own flags out of argv; the rest goes to the bumpversion core."""
-    opts = {"json": False, "push": None}
+    opts = {"json": False, "push": None, "sync": False, "github_output": False, "retry": 0}
     rest = []
-    for arg in argv:
+    argv = list(argv)
+    while argv:
+        arg = argv.pop(0)
         if arg in _OWN_FLAGS:
             key, value = _OWN_FLAGS[arg]
             opts[key] = value
+        elif arg == "--retry" or arg.startswith("--retry="):
+            value = arg.partition("=")[2] if "=" in arg else (argv.pop(0) if argv else "")
+            if not value.isdigit():
+                raise Failure(EXIT_USAGE, "usage", f"--retry needs a number, got {value!r}",
+                              hint="For example: --retry 3")
+            opts["retry"] = int(value)
         else:
             rest.append(arg)
     if opts["json"]:
@@ -353,6 +374,80 @@ def _ensure_ci_identity():
         os.environ.setdefault(key, email)
 
 
+def _version_commit_regex(args):
+    message = _light_config(args).get("message", "Bump version: {current_version} → {new_version}")
+    return _template_regex(message.strip().splitlines()[0])
+
+
+def _sync(out, args):
+    """Fast-forward the checked-out branch to its remote tip before bumping.
+
+    In CI the checkout is the commit that triggered the run; when runs overlap, the
+    branch has often moved on (another run's version commit), and a bump made on the
+    old commit can't be pushed. Fast-forward only: nothing local is ever discarded.
+    """
+    branch = _git("symbolic-ref", "-q", "--short", "HEAD").stdout.strip()
+    if not branch:
+        raise Failure(EXIT_PUSH_FAILED, "detached_head",
+                      "--sync needs a branch checked out, but HEAD is detached.",
+                      hint="Check out the branch to release (in GitHub Actions, run on push "
+                           "events, not pull_request).")
+    upstream = _git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}").stdout.strip()
+    remote, _, remote_branch = upstream.partition("/") if upstream else ("origin", "", branch)
+    tip = f"{remote}/{remote_branch}"
+    fetch = _git("fetch", "--quiet", "--tags", remote,
+                 f"+refs/heads/{remote_branch}:refs/remotes/{tip}")
+    if fetch.returncode != 0:
+        raise Failure(EXIT_ERROR, "fetch_failed",
+                      f"git fetch {remote} {remote_branch} failed: {fetch.stderr.strip()}",
+                      retryable=True)
+
+    head = _git("rev-parse", "HEAD").stdout.strip()
+    tip_sha = _git("rev-parse", tip).stdout.strip()
+    if head != tip_sha:
+        if _git("merge-base", "--is-ancestor", "HEAD", tip).returncode == 0:
+            if _git("merge", "--ff-only", "--quiet", tip).returncode != 0:
+                raise Failure(EXIT_ERROR, "sync_failed", f"Could not fast-forward {branch} to {tip}.")
+            out.say(f"Synced {branch} to {tip} ({tip_sha[:7]}).")
+        elif _git("merge-base", "--is-ancestor", tip, "HEAD").returncode != 0:
+            raise Failure(EXIT_ERROR, "diverged", f"{branch} and {tip} have diverged.",
+                          hint="Rebase onto the remote first: git pull --rebase.")
+        # else: local commits the remote doesn't have yet; they go out with this release.
+
+    subject = _git("log", "-1", "--format=%s").stdout.strip()
+    if _version_commit_regex(args).match(subject):
+        raise Failure(EXIT_NOTHING_TO_RELEASE, "already_released",
+                      f"{branch} is already at a version commit ({subject}). Nothing to release.")
+
+
+def _undo_local_release(before, after):
+    """Drop the version commit and tag this run just made, before trying again.
+
+    Only ever removes what this run created: the tags that weren't there before,
+    and HEAD only when its parent is the commit we started from.
+    """
+    for tag in sorted(after[1] - before[1]):
+        _git("tag", "-d", tag)
+    if after[0] != before[0]:
+        if _git("rev-parse", after[0] + "^").stdout.strip() != before[0]:
+            raise Failure(EXIT_PUSH_FAILED, "push_rejected",
+                          "The push was rejected and HEAD has moved unexpectedly, so the "
+                          "version commit can't be undone safely for a retry.")
+        _git("reset", "--keep", before[0])
+
+
+def _write_github_output(out, values):
+    path = os.environ.get("GITHUB_OUTPUT")
+    if not path:
+        out.say("warning: --github-output: GITHUB_OUTPUT is not set, so no outputs were written.")
+        return
+    with open(path, "a", encoding="utf-8") as f:
+        for key, value in values.items():
+            if isinstance(value, bool):
+                value = "true" if value else "false"
+            f.write(f"{key}={'' if value is None else value}\n")
+
+
 def _push_enabled(plan, opts):
     if opts["push"] is not None:
         return opts["push"]
@@ -457,6 +552,39 @@ def cmd_bump(args, opts, out):
         pushed = _push_if_needed(out, opts["push"] is not False, False, before, after)
         return {"tag": {"created": sorted(after[1] - before[1])}, "push": {"pushed": pushed}}
 
+    attempts = 1 + opts["retry"]
+    sync = opts["sync"] or opts["retry"] > 0
+    try:
+        for attempt in range(1, attempts + 1):
+            try:
+                return _bump_once(args, opts, out, sync, attempt)
+            except _Retry as retry:
+                if attempt == attempts:
+                    raise retry.failure
+                out.say(f"Another change reached the remote first; retrying "
+                        f"({attempt}/{attempts - 1}).")
+                time.sleep(2 * attempt)
+    except Failure as failure:
+        if opts["github_output"] and failure.exit_code == EXIT_NOTHING_TO_RELEASE:
+            config = _light_config(args)
+            _write_github_output(out, {
+                "version": config.get("current_version"),
+                "previous_version": config.get("current_version"),
+                "tag": "", "sha": _git("rev-parse", "HEAD").stdout.strip(),
+                "bumped": False, "pushed": False,
+            })
+        raise
+
+
+class _Retry(Exception):
+    def __init__(self, failure):
+        super().__init__(failure.message)
+        self.failure = failure
+
+
+def _bump_once(args, opts, out, sync, attempt):
+    if sync:
+        _sync(out, args)
     args, auto = _resolve_auto(args, out)
     plan = _core_call(core.compute_plan, args)
     _check_tag_is_free(plan)
@@ -474,8 +602,26 @@ def cmd_bump(args, opts, out):
         out.say(f"Bumped {plan.args.current_version} → {plan.args.new_version}.",
                 f"Yay! 😺🎉 Bump version accepted. {okay}")
 
-    pushed = _push_if_needed(out, push, plan.args.dry_run, before, after)
-    return _payload(plan, _first_positional(args), auto, push, before, after, pushed)
+    try:
+        pushed = _push_if_needed(out, push, plan.args.dry_run, before, after)
+    except Failure as failure:
+        if failure.code == "push_rejected" and sync:
+            _undo_local_release(before, after)
+            raise _Retry(failure) from failure
+        raise
+
+    payload = _payload(plan, _first_positional(args), auto, push, before, after, pushed)
+    payload["attempts"] = attempt
+    if opts["github_output"] and not plan.args.dry_run:
+        _write_github_output(out, {
+            "version": payload["new_version"],
+            "previous_version": payload["current_version"],
+            "tag": payload["tag"]["name"] if payload["tag"]["created"] else "",
+            "sha": after[0],
+            "bumped": after != before,
+            "pushed": pushed,
+        })
+    return payload
 
 
 def _push_if_needed(out, push, dry_run, before, after):
@@ -498,7 +644,16 @@ def _push_if_needed(out, push, dry_run, before, after):
             hint="Check out a branch before bumping (in GitHub Actions, pull_request "
                  "events check out a detached merge commit), or pass --no-push.",
         )
-    if not _push_branch_and_tags():
+    ok, rejected = _push_branch_and_tags()
+    if rejected:
+        raise Failure(
+            EXIT_PUSH_FAILED, "push_rejected",
+            "The remote branch moved on (another run or person pushed first), so the push "
+            "was rejected. The version commit and tag are local only.",
+            hint="Run again with --sync (or --retry 3 in CI), which bumps from the remote tip.",
+            retryable=True,
+        )
+    if not ok:
         raise Failure(
             EXIT_PUSH_FAILED, "push_failed",
             "Failed to push changes to the remote repository. The version commit and "
@@ -517,18 +672,22 @@ def _push_branch_and_tags():
     A plain `git push --follow-tags` sends the tag even when the branch is rejected
     (another run pushed first, a branch rule), leaving a tag on the remote for a
     commit that isn't on any branch; the next bump to that version then fails.
+
+    Returns (ok, rejected): rejected means the remote branch moved on (non-fast-forward).
     """
     push = subprocess.run(["git", "push", "--atomic", "--follow-tags"],
                           stderr=subprocess.PIPE, text=True)
     sys.stderr.write(push.stderr)
     if push.returncode == 0:
-        return True
+        return True, False
     if "does not support --atomic" not in push.stderr:
-        return False
+        rejected = "[rejected]" in push.stderr and (
+            "fetch first" in push.stderr or "non-fast-forward" in push.stderr)
+        return False, rejected
     # The remote can't do atomic pushes: push the branch first, the tags only once it landed.
     if subprocess.run(["git", "push"]).returncode != 0:
-        return False
-    return subprocess.run(["git", "push", "--follow-tags"]).returncode == 0
+        return False, False
+    return subprocess.run(["git", "push", "--follow-tags"]).returncode == 0, False
 
 
 def _settings(args):
@@ -598,6 +757,12 @@ def cmd_show(args, opts, out):
                         ),
                     )
                 value = value[key]
+            if value is None:
+                raise Failure(
+                    EXIT_VERSION_NOT_FOUND, "missing_value", f"{field} is not set.",
+                    hint="Is there a .bumpversion.cfg (or [tool.bumpversion]) with "
+                         "current_version on this branch?",
+                )
             out.data(" ".join(value) if isinstance(value, list) else str(value))
     else:
         for key, value in info.items():
@@ -750,8 +915,12 @@ COMMANDS = {
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    opts, args = _own_flags(argv)
-    out = Output(json_mode=opts["json"])
+    out = Output(json_mode="--json" in argv)
+    try:
+        opts, args = _own_flags(argv)
+    except Failure as failure:
+        out.failure("bump2v", failure)
+        sys.exit(failure.exit_code)
 
     if not args or args[0] in ("-h", "--help", "help"):
         print(USAGE, file=sys.stdout if args else sys.stderr)
