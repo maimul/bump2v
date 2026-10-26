@@ -11,7 +11,7 @@ Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Research behind it: [docs/research/
 None. Personal repo with no team board, so `/track-sync` does not apply.
 
 ## Now
-- T-023 Team pilot, round 2: one repo first (pilot PR prepared), then the rest: the bump2v Action with a concurrency group, build the version commit, skip duplicate deploys, bump only on the dev branch, drop bump2v from runtime requirements. Team-repo writes are run by the user.
+- T-023 Team pilot, round 2. Pilot repo merged; first run green (bumped from the right tag, commit and tag in one push, built the version commit). 9 more repos prepared on 1.8.2 (a dry run on their real histories found and fixed the tag = False bug first); the user opens those PRs. Left after that: the 2 repos with a different layout (one bumps in every environment), and a decision on a branch where CI may not push.
 
 ## Next
 - T-024 Revoke the old PyPI API token on pypi.org (it was removed from GitHub, but stays valid until revoked). Only the user can do this.
@@ -28,6 +28,7 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - (none)
 
 ## Done
+- T-025 2026-10-26 1.8.2 on PyPI: `auto` ignores tags when tag = False (it had counted from tags left over from before tagging was turned off and planned a major bump). Tests, Action (3 OSes) and publish green. sync: —
 - T-009 2026-10-26 Team pilot: all 13 pin PRs (`bump2v>=1.6.2,<2`) open and mergeable; the round-2 pilot PR (move one pipeline to the Action) is open too. Merging is the team's call. sync: —
 - T-018 2026-10-26 Removed the unused PyPI token secret, `PYPI_USERNAME` variable and `PYPI_API_TOKEN` environment; only the `pypi` environment (Trusted Publishing) remains. sync: —
 - T-022 2026-10-26 1.8.0/1.8.1 on PyPI: `--sync`, `--retry`, `--github-output`, `show` fails on a missing value, the GitHub Action; 1.8.1 fixes Windows (git output decoded as UTF-8, init paths with /). Action verified on Linux, macOS and Windows; tests now gate publishing on all three OSes. sync: —
