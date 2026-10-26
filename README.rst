@@ -77,7 +77,7 @@ Commands
 - ``bump2v check`` -- fail with exit code 4 if a configured file doesn't contain ``current_version``
 - ``bump2v init [--agents]`` -- write ``.bumpversion.cfg`` for this project. ``--agents`` also adds release instructions for AI coding agents
 
-Options for every command: ``--json`` (one JSON result on stdout), ``--no-push``, ``--push``. ``bump2v <part> --help`` lists every bumpversion option (``--config-file``, ``--allow-dirty``, ``--no-commit``, ``--no-tag``, ``--new-version``, ...).
+Options for every command: ``--json`` (one JSON result on stdout), ``--no-push``, ``--push``. For CI: ``--sync`` (fast-forward to the remote branch tip first; exit 7 if the tip is already a version commit), ``--retry N`` (if another run pushed first, catch up and bump again, up to N times; implies ``--sync``), ``--github-output`` (write ``version``, ``previous_version``, ``tag``, ``sha``, ``bumped``, ``pushed`` to ``$GITHUB_OUTPUT``). ``bump2v <part> --help`` lists every bumpversion option (``--config-file``, ``--allow-dirty``, ``--no-commit``, ``--no-tag``, ``--new-version``, ...).
 
 If your config defines a part named ``release``, ``bump2v release`` on its own still bumps that part; ``bump2v release patch`` is the command.
 
@@ -221,6 +221,56 @@ release fails with exit code 1 instead of guessing. Preview with
 
 -----------
 
+GitHub Action
+-------------
+
+.. code-block:: yaml
+
+    on:
+      push:
+        branches: [development]
+
+    concurrency:                       # one release at a time per branch
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+
+    jobs:
+      release:
+        runs-on: ubuntu-latest
+        permissions:
+          contents: write
+        outputs:
+          version: ${{ steps.bump.outputs.version }}
+          sha: ${{ steps.bump.outputs.sha }}
+        steps:
+          - uses: actions/checkout@v6
+            with:
+              fetch-depth: 0           # auto reads the commits since the last release
+          - id: bump
+            uses: maimul/bump2v@v1.8.0 # or pin the full commit SHA
+            with:
+              part: auto               # major, minor, patch or auto (the default)
+
+      build:
+        needs: release
+        steps:
+          - uses: actions/checkout@v6
+            with:
+              ref: ${{ needs.release.outputs.sha }}   # build the version commit itself
+
+What the action does for you:
+
+- **Bumps from the branch tip.** CI checks out the commit that triggered the run; if another run pushed since, the action fast-forwards first instead of bumping a stale commit.
+- **Retries a lost race.** If another run still pushes first, it drops its own version commit and tag, catches up and bumps again (``retry``, default 3).
+- **Skips a released tip.** If the branch tip is already a version commit, it succeeds with ``bumped=false`` and the current version, so later steps still have a version to use.
+- **Pushes atomically.** The branch and tag land together or not at all, so no orphan tags.
+- **Outputs** ``version``, ``previous-version``, ``tag``, ``sha`` (the commit to build), ``bumped``, ``pushed``.
+- **Runs from its own commit.** No ``pip install``, nothing downloaded; pin it by SHA and that exact code runs. Needs Python 3.11+ on the runner (GitHub-hosted runners have it).
+
+Inputs: ``part`` (``auto``), ``push`` (``true``), ``retry`` (``3``), ``working-directory`` (``.``), ``args`` (extra bump2v options).
+
+-----------
+
 In CI pipelines
 ---------------
 
@@ -232,11 +282,11 @@ In CI pipelines
           - name: Bump, tag and push
             id: bump
             run: |
-              pip install "bump2v>=1.7,<2"
-              bump2v release auto
+              pip install "bump2v>=1.8,<2"
+              bump2v release auto --sync --retry 3
               echo "version=$(bump2v show current_version)" >> "$GITHUB_OUTPUT"
 
-- Pin a version range (``bump2v>=1.7,<2``) so a new major release can't change your pipeline.
+- Pin a version range (``bump2v>=1.8,<2``) so a new major release can't change your pipeline.
 - When git has no user set and ``CI`` is set, bump2v commits as ``github-actions[bot]`` on GitHub Actions (or ``bump2v`` elsewhere), so no ``git config`` step is needed.
 - ``bump2v show current_version`` prints just the version; no need to grep the config.
 - ``bump2v release auto --json`` returns the old and new version, files, commit SHA, tag and push result in one object.
@@ -288,7 +338,7 @@ With ``--json``, stdout carries one object (abbreviated here) and messages stay 
 .. code-block:: json
 
     {
-      "format_version": "1.0",
+      "format_version": "1.1",
       "command": "plan",
       "ok": true,
       "current_version": "1.2.3",

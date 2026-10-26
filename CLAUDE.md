@@ -22,8 +22,10 @@ bump2v/
 pyproject.toml          # Package metadata and dependencies (no external deps)
 requirements.txt        # Empty — no dependencies
 .bumpversion.cfg        # bump2v uses itself to version itself
+action.yml              # The GitHub Action (composite): runs bump2v from its own checkout
 .github/workflows/
   test.yml              # Tests on every push to main and every PR (Python 3.11–3.15, Linux/macOS/Windows)
+  action.yml            # Runs the GitHub Action against a throwaway repo on all three OSes
   pypi-publish.yml      # Publishes to PyPI on every git tag push (v*), after the tests pass
 tests/                  # pytest suite (see Tests below)
 docs/

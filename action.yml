@@ -1,0 +1,77 @@
+name: bump2v release
+description: Bump the version in every configured file, commit, tag and push it. Safe when CI runs overlap.
+author: maimul
+branding:
+  icon: tag
+  color: blue
+
+inputs:
+  part:
+    description: major, minor, patch, a part from your config, or auto (picked from the Conventional Commits since the last release)
+    default: auto
+  push:
+    description: Push the version commit and tag. "false" commits and tags only.
+    default: "true"
+  retry:
+    description: How many more times to try when another run pushed first (each try starts from the new branch tip)
+    default: "3"
+  working-directory:
+    description: Directory that holds the bump2v config
+    default: "."
+  args:
+    description: Extra bump2v options, for example --config-file release.cfg
+    default: ""
+
+outputs:
+  version:
+    description: The version after this step (the current one when there was nothing to release)
+    value: ${{ steps.bump.outputs.version }}
+  previous-version:
+    description: The version before this step
+    value: ${{ steps.bump.outputs.previous_version }}
+  tag:
+    description: The tag this step created (empty when none)
+    value: ${{ steps.bump.outputs.tag }}
+  sha:
+    description: The commit to build, so the image matches its version (the version commit, or HEAD when nothing was released)
+    value: ${{ steps.bump.outputs.sha }}
+  bumped:
+    description: '"true" when a new version was committed, "false" when the branch tip was already released'
+    value: ${{ steps.bump.outputs.bumped }}
+  pushed:
+    description: '"true" when the commit and tag were pushed'
+    value: ${{ steps.bump.outputs.pushed }}
+
+runs:
+  using: composite
+  steps:
+    - id: bump
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        # Run bump2v from this action's own checkout: no install, no download, and
+        # pinning the action to a commit pins the exact code that runs.
+        PYTHONPATH: ${{ github.action_path }}
+        BUMP2V_PART: ${{ inputs.part }}
+        BUMP2V_PUSH: ${{ inputs.push }}
+        BUMP2V_RETRY: ${{ inputs.retry }}
+        BUMP2V_ARGS: ${{ inputs.args }}
+      run: |
+        python=$(command -v python3 || command -v python)
+        "$python" -c 'import sys; sys.exit(sys.version_info < (3, 11))' || {
+          echo "::error::bump2v needs Python 3.11 or newer. Add actions/setup-python before this step."
+          exit 1
+        }
+        args=(release "$BUMP2V_PART" --sync --retry "$BUMP2V_RETRY" --github-output)
+        if [ "$BUMP2V_PUSH" = "false" ]; then args+=(--no-push); fi
+        set +e
+        # BUMP2V_ARGS is a list of options, so it is split on purpose.
+        # shellcheck disable=SC2086
+        "$python" -m bump2v "${args[@]}" $BUMP2V_ARGS
+        code=$?
+        set -e
+        if [ "$code" -eq 7 ]; then
+          echo "Nothing to release: the branch tip is already released."
+          exit 0
+        fi
+        exit "$code"

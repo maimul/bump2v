@@ -1,0 +1,96 @@
+# Runs the bump2v GitHub Action (action.yml at the repo root) against a throwaway
+# repo whose remote another "run" has already pushed to, on all three OSes.
+
+name: Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: action-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  action:
+    name: Action on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Make a repo to release, then let another run push first
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          git init -q --bare -b main remote.git
+          git init -q -b main work
+          cd work
+          git config user.name test
+          git config user.email test@example.com
+          printf '1.0.0\n' > VERSION
+          printf '[bumpversion]\ncurrent_version = 1.0.0\ncommit = True\ntag = True\n\n[bumpversion:file:VERSION]\n' > .bumpversion.cfg
+          git add . && git commit -qm "chore: start"
+          git tag v1.0.0
+          git remote add origin ../remote.git
+          git push -q -u origin main --tags
+          echo feature > feature.txt && git add feature.txt && git commit -qm "feat: a feature"
+          git push -q
+          # Another run lands first, so this checkout is one commit behind the remote.
+          git clone -q ../remote.git ../other
+          cd ../other
+          git config user.name other
+          git config user.email other@example.com
+          echo fix > fix.txt && git add fix.txt && git commit -qm "fix: the other run"
+          git push -q
+
+      - id: release
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/work
+
+      - name: The release landed on the remote tip
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          PREVIOUS: ${{ steps.release.outputs.previous-version }}
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+          BUMPED: ${{ steps.release.outputs.bumped }}
+          PUSHED: ${{ steps.release.outputs.pushed }}
+        run: |
+          set -euo pipefail
+          echo "version=$VERSION previous=$PREVIOUS tag=$TAG sha=$SHA bumped=$BUMPED pushed=$PUSHED"
+          test "$VERSION" = 1.1.0
+          test "$PREVIOUS" = 1.0.0
+          test "$TAG" = v1.1.0
+          test "$BUMPED" = true
+          test "$PUSHED" = true
+          cd "$RUNNER_TEMP/remote.git"
+          test "$(git rev-parse main)" = "$SHA"
+          git log --format=%s main | grep -qx "fix: the other run"
+          git tag --list | grep -qx v1.1.0
+
+      - id: again
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/work
+
+      - name: A second run on the released tip changes nothing
+        shell: bash
+        env:
+          VERSION: ${{ steps.again.outputs.version }}
+          BUMPED: ${{ steps.again.outputs.bumped }}
+        run: |
+          set -euo pipefail
+          test "$VERSION" = 1.1.0
+          test "$BUMPED" = false
+          test "$(git -C "$RUNNER_TEMP/remote.git" tag --list | wc -l | tr -d ' ')" = 2
