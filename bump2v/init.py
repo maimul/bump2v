@@ -126,6 +126,8 @@ def detect(root="."):
 
     def add(source):
         if source is not None and source.path not in {s.path for s in found}:
+            # Config paths use "/" on every OS, so a config written on Windows works elsewhere.
+            source.path = source.path.replace(os.sep, "/")
             found.append(source)
 
     cwd = os.getcwd()

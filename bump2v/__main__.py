@@ -123,7 +123,10 @@ def _classify_commits(messages):
 
 
 def _git(*args):
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+    # git writes commit messages as UTF-8; decoding with the Windows codepage would turn
+    # "→" in a version commit subject into mojibake that no longer matches the template.
+    return subprocess.run(["git", *args], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
 
 
 _PLACEHOLDER = re.compile(r"\{[^}]*\}")
@@ -676,7 +679,7 @@ def _push_branch_and_tags():
     Returns (ok, rejected): rejected means the remote branch moved on (non-fast-forward).
     """
     push = subprocess.run(["git", "push", "--atomic", "--follow-tags"],
-                          stderr=subprocess.PIPE, text=True)
+                          stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     sys.stderr.write(push.stderr)
     if push.returncode == 0:
         return True, False

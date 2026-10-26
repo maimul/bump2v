@@ -146,7 +146,7 @@ from bump2v import __main__ as bump2v_main
 
 def _git(cwd, *args):
     return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8"
     ).stdout.strip()
 
 
