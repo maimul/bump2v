@@ -136,6 +136,17 @@ def _get_new_version(args):
     return None
 
 
+def _git_state():
+    """HEAD sha and the set of tags, to tell whether the bump created anything to push."""
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    tags = set(subprocess.run(
+        ["git", "tag", "--list"], capture_output=True, text=True
+    ).stdout.split())
+    return head, tags
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0].lower() == "bump":
@@ -178,6 +189,8 @@ def main():
     if new_version:
         print(f"📦 Bumping to version: {new_version}")
 
+    state_before = _git_state()
+
     try:
         _bumpversion_main(args)
         print(f"Yay! 😺🎉 Bump version accepted. {okay}")
@@ -200,6 +213,16 @@ def main():
             "- Ensure your Git repository is in a valid state (no uncommitted changes)."
         )
         sys.exit(1)
+
+    # Push only what this run created: a dry run, `commit = False` or `--no-commit`
+    # leaves HEAD and the tags unchanged, and pushing then would publish unrelated
+    # local commits.
+    if "--dry-run" in args or "-n" in args:
+        print("Dry run: nothing committed, nothing pushed.")
+        return
+    if _git_state() == state_before:
+        print("Nothing was committed or tagged, so nothing to push.")
+        return
 
     try:
         subprocess.run(["git", "push", "--follow-tags"], check=True)

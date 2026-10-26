@@ -134,3 +134,71 @@ class TestClassifyCommits:
     def test_found_conventional_false_when_no_cc(self):
         _, _, found = _classify_commits(["random commit message"])
         assert not found
+
+
+# --- push behaviour: only push what this run created ---
+
+import subprocess
+import sys
+
+from bump2v import __main__ as bump2v_main
+
+
+def _git(cwd, *args):
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    """A repo at 1.0.0 with a pushed first commit and one unpushed local commit."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    remote = tmp_path / "remote.git"
+    work = tmp_path / "work"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(remote))
+    _git(tmp_path, "init", "-q", "-b", "main", str(work))
+    _git(work, "config", "user.name", "Test")
+    _git(work, "config", "user.email", "test@example.com")
+    (work / "VERSION").write_text("1.0.0\n")
+    (work / ".bumpversion.cfg").write_text(
+        "[bumpversion]\ncurrent_version = 1.0.0\ncommit = True\ntag = True\n\n"
+        "[bumpversion:file:VERSION]\n"
+    )
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "initial")
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "push", "-q", "-u", "origin", "main")
+    (work / "notes.txt").write_text("local work\n")
+    _git(work, "add", "notes.txt")
+    _git(work, "commit", "-q", "-m", "local, not pushed")
+    monkeypatch.chdir(work)
+    return work, remote
+
+
+def _run(monkeypatch, *args):
+    monkeypatch.setattr(sys, "argv", ["bump2v", *args])
+    bump2v_main.main()
+
+
+class TestPush:
+    def test_dry_run_pushes_nothing(self, repo, monkeypatch):
+        work, remote = repo
+        remote_head = _git(remote, "rev-parse", "main")
+        _run(monkeypatch, "patch", "--dry-run")
+        assert _git(remote, "rev-parse", "main") == remote_head
+        assert (work / "VERSION").read_text() == "1.0.0\n"
+
+    def test_no_commit_pushes_nothing(self, repo, monkeypatch):
+        work, remote = repo
+        remote_head = _git(remote, "rev-parse", "main")
+        _run(monkeypatch, "patch", "--no-commit", "--no-tag")
+        assert _git(remote, "rev-parse", "main") == remote_head
+        assert (work / "VERSION").read_text() == "1.0.1\n"
+
+    def test_bump_pushes_commit_and_tag(self, repo, monkeypatch):
+        work, remote = repo
+        _run(monkeypatch, "patch")
+        assert _git(remote, "rev-parse", "main") == _git(work, "rev-parse", "HEAD")
+        assert _git(remote, "tag", "--list") == "v1.0.1"

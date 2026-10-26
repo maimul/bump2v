@@ -45,6 +45,16 @@ Quick Start
 
 Alternative command aliases: ``bumptydumpty``, ``versionkaboom``
 
+Preview first
+~~~~~~~~~~~~~
+
+.. code-block:: zsh
+
+    bump2v patch --dry-run             # shows the new version; writes, commits and pushes nothing
+    bump2v patch --dry-run --verbose   # also shows each file it would change
+
+bump2v pushes only what the run itself created. With ``--dry-run``, ``--no-commit`` or ``commit = False`` there is nothing new, so nothing is pushed.
+
 -----------
 
 Setup by project type
