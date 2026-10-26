@@ -5,7 +5,9 @@ A CLI wrapper and native fork of `bump2version <https://github.com/c4urself/bump
 
 .. code-block:: zsh
 
-    pip install bump2v
+    pip install bump2v        # or: pipx install bump2v
+
+Requires Python 3.11 or newer (older Pythons get 1.6.x). No other dependencies.
 
 -----------
 
@@ -24,6 +26,12 @@ The ``.bumpversion.cfg`` file tells bump2v where to find and update that version
 
 Quick Start
 -----------
+
+**Once per project:** let bump2v find your version and write ``.bumpversion.cfg``, then review and commit it.
+
+.. code-block:: zsh
+
+    bump2v init
 
 **Step 1:** Make your code change.
 
@@ -50,10 +58,28 @@ Preview first
 
 .. code-block:: zsh
 
-    bump2v patch --dry-run             # shows the new version; writes, commits and pushes nothing
-    bump2v patch --dry-run --verbose   # also shows each file it would change
+    bump2v plan patch          # new version, files, commit message, tag, push; changes nothing
+    bump2v plan auto --json    # the same as JSON, for scripts and AI agents
+    bump2v patch --dry-run     # the older form; also changes nothing (--verbose shows each file)
 
 bump2v pushes only what the run itself created. With ``--dry-run``, ``--no-commit`` or ``commit = False`` there is nothing new, so nothing is pushed.
+
+-----------
+
+Commands
+--------
+
+- ``bump2v <part>`` -- bump, commit, tag and push. ``<part>`` is ``major``, ``minor``, ``patch`` or a part from your config
+- ``bump2v auto`` -- the same, with the part picked from your commit messages (see Auto mode below)
+- ``bump2v release <part|auto>`` -- the same as ``bump2v <part>``, named explicitly
+- ``bump2v plan <part|auto>`` -- show what a bump would do. Changes nothing
+- ``bump2v show [field ...]`` -- print ``current_version``, ``files``, ``tag_name``, ``next.major``, ``next.minor``, ``next.patch``, ...
+- ``bump2v check`` -- fail with exit code 4 if a configured file doesn't contain ``current_version``
+- ``bump2v init [--agents]`` -- write ``.bumpversion.cfg`` for this project. ``--agents`` also adds release instructions for AI coding agents
+
+Options for every command: ``--json`` (one JSON result on stdout), ``--no-push``, ``--push``. ``bump2v <part> --help`` lists every bumpversion option (``--config-file``, ``--allow-dirty``, ``--no-commit``, ``--no-tag``, ``--new-version``, ...).
+
+If your config defines a part named ``release``, ``bump2v release`` on its own still bumps that part; ``bump2v release patch`` is the command.
 
 -----------
 
@@ -184,12 +210,121 @@ work is a patch or a minor.
     Bumping to version: 2.0.0
 
 If no conventional commits are found, bumps patch as a safe fallback.
-If there are no commits since the last tag, bump2v exits without bumping.
+With no tags yet it bumps patch. With no commits since the latest tag it
+stops with exit code 7. In CI, check out the full history (``fetch-depth: 0``
+in GitHub Actions) so the tags and commits are there. Preview with
+``bump2v plan auto``.
+
+-----------
+
+In CI pipelines
+---------------
+
+.. code-block:: yaml
+
+          - uses: actions/checkout@v6
+            with:
+              fetch-depth: 0   # auto reads the commits since the last tag
+          - name: Bump, tag and push
+            id: bump
+            run: |
+              pip install "bump2v>=1.7,<2"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              bump2v release auto
+              echo "version=$(bump2v show current_version)" >> "$GITHUB_OUTPUT"
+
+- Pin a version range (``bump2v>=1.7,<2``) so a new major release can't change your pipeline.
+- ``bump2v show current_version`` prints just the version; no need to grep the config.
+- ``bump2v release auto --json`` returns the old and new version, files, commit SHA, tag and push result in one object.
+- ``--no-push`` commits and tags without pushing, for jobs that push later or not at all.
+- Pushes made with ``GITHUB_TOKEN`` don't start new workflow runs, so the version commit won't trigger the pipeline again. Use a ``concurrency`` group so two releases never race.
+- bump2v stops before writing anything if the new tag already exists (exit 5), and keeps the commit and tag local if HEAD is detached (exit 6).
+
+-----------
+
+Using with AI coding agents
+---------------------------
+
+.. code-block:: zsh
+
+    bump2v init --agents
+
+adds a **Releasing** section to ``CLAUDE.md`` (or ``AGENTS.md``) that tells Claude Code, Codex, Cursor and other agents to preview with ``bump2v plan auto --json``, release with ``bump2v release auto``, check with ``bump2v check``, and never edit versions by hand.
+
+To let an agent preview freely but ask before it releases, in Claude Code's ``.claude/settings.json``:
+
+.. code-block:: json
+
+    {
+      "permissions": {
+        "allow": ["Bash(bump2v plan *)", "Bash(bump2v show *)", "Bash(bump2v check *)"],
+        "ask": ["Bash(bump2v release *)"]
+      }
+    }
+
+Output is plain text (no emoji) when it isn't going to a terminal, or when ``NO_COLOR``, ``CI`` or ``CLAUDECODE`` is set.
+
+-----------
+
+Exit codes and JSON output
+--------------------------
+
+- ``0`` -- done
+- ``1`` -- other error
+- ``2`` -- bad arguments or config
+- ``3`` -- working tree has uncommitted changes
+- ``4`` -- a configured file doesn't contain the current version
+- ``5`` -- the new tag already exists
+- ``6`` -- push failed (or HEAD is detached); the commit and tag are local
+- ``7`` -- nothing to release
+
+With ``--json``, stdout carries one object (abbreviated here) and messages stay on stderr:
+
+.. code-block:: json
+
+    {
+      "format_version": "1.0",
+      "command": "plan",
+      "ok": true,
+      "current_version": "1.2.3",
+      "new_version": "1.3.0",
+      "part": "minor",
+      "files": [{"path": "package.json", "changed": true, "matches": 1}],
+      "commit": {"enabled": true, "message": "Version Updated: 1.2.3 -> 1.3.0", "sha": null},
+      "tag": {"enabled": true, "name": "v1.3.0", "created": false},
+      "push": {"enabled": true, "pushed": false}
+    }
+
+On failure: ``"ok": false``, ``"exit_code"``, and ``"error": {"code", "message", "hint", "retryable"}``. ``format_version`` changes minor for added fields and major for removed or renamed ones.
 
 -----------
 
 Advanced Flags
 --------------
+
+``--no-push`` / ``push = False`` -- Commit and tag without pushing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: zsh
+
+    bump2v patch --no-push
+
+Or set ``push = False`` in ``[bumpversion]``; ``--push`` overrides it for one run.
+
+``replace_all`` -- Bump only the first match
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default every match of ``search`` in a file is replaced. If the same version string appears elsewhere (a dependency pinned to the same version), bump only the first match:
+
+.. code-block:: ini
+
+    [bumpversion:file:pyproject.toml]
+    search = version = "{current_version}"
+    replace = version = "{new_version}"
+    replace_all = False
+
+``bump2v plan`` warns when a search matches more than once. ``bump2v init`` sets ``replace_all = False`` for ``pyproject.toml`` and ``Cargo.toml``.
 
 ``--tag-only`` -- Tag without bumping
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -270,10 +405,35 @@ Full Config Reference
     commit_args =
     ignore_missing_version = False
     extra_files =
+    push = True                   # False: commit and tag, but don't push
+    replace_all = True            # False: bump only the first match in each file
+    allow_dirty = False
 
     [bumpversion:file:package.json]
     search = "version": "{current_version}"
     replace = "version": "{new_version}"
+
+bump2v looks for its config in this order and uses the first it finds: ``--config-file``, ``$BUMP2V_CONFIG``, ``.bumpversion.cfg``, ``.bumpversion.toml``, ``pyproject.toml`` with a ``[tool.bumpversion]`` table, ``setup.cfg``.
+
+TOML config
+~~~~~~~~~~~
+
+``.bumpversion.toml`` and ``pyproject.toml`` use the ``[tool.bumpversion]`` table (the same format as bump-my-version):
+
+.. code-block:: toml
+
+    [tool.bumpversion]
+    current_version = "1.0.0"
+    commit = true
+    tag = true
+
+    [[tool.bumpversion.files]]
+    filename = "pyproject.toml"
+    search = 'version = "{current_version}"'
+    replace = 'version = "{new_version}"'
+    replace_all = false
+
+bump2v updates ``current_version`` by editing that one line, so comments and formatting stay. Options it doesn't support (hooks, ``regex``, ...) are reported and ignored.
 
 -----------
 
