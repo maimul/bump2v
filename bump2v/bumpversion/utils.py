@@ -196,9 +196,16 @@ class ConfiguredFile:
                 return True
         return False
 
-    def compute_replacement(self, current_version, new_version, context):
-        """Work out this file's new content. Writes nothing; returns a FileChange."""
-        before, had_bom = read_text_raw(self.path)
+    def compute_replacement(self, current_version, new_version, context, previous=None):
+        """Work out this file's new content. Writes nothing; returns a FileChange.
+
+        `previous` is an earlier FileChange for the same file (the file is listed
+        twice with different searches); this edit then builds on its result.
+        """
+        if previous is not None:
+            before, had_bom = previous.after, previous.had_bom
+        else:
+            before, had_bom = read_text_raw(self.path)
 
         context["current_version"] = self._versionconfig.serialize(
             current_version, context

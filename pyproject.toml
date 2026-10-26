@@ -8,12 +8,22 @@ version = "1.6.2"
 description = "This is a package to bump version numbers in a project. Fully automated versioning. Refer to bump2version package instructions."
 readme = "README.rst"
 license = {file = "LICENSE"}
+requires-python = ">=3.11"
 dependencies = []
 
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Version Control :: Git",
 ]
 
 keywords = [

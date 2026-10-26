@@ -146,3 +146,120 @@ class TestFileEdits:
             _bump(tmp_path, monkeypatch, cfg, {"v.txt": b"1.0.0\n", "w.txt": b"1.0.0\n"})
         assert (tmp_path / "v.txt").read_bytes() == b"1.0.0\n"
         assert b"current_version = 1.0.0" in (tmp_path / ".bumpversion.cfg").read_bytes()
+
+
+# --- TOML config ([tool.bumpversion], bump-my-version's format) ---
+
+def _run_core(tmp_path, monkeypatch, files, *args):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
+    for name, text in files.items():
+        (tmp_path / name).write_text(text)
+    cli.main(list(args))
+    return {name: (tmp_path / name).read_text() for name in files}
+
+
+PYPROJECT = '''[project]
+name = "demo"
+version = "1.0.0"  # keep this comment
+dependencies = ["other==1.0.0"]
+
+[tool.bumpversion]
+# release settings
+current_version = "1.0.0"
+commit = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src.py"
+'''
+
+
+class TestTomlConfig:
+    def test_pyproject_is_config_and_bumped_file(self, tmp_path, monkeypatch):
+        out = _run_core(tmp_path, monkeypatch,
+                        {"pyproject.toml": PYPROJECT, "src.py": '__version__ = "1.0.0"\n'}, "minor")
+        assert out["pyproject.toml"] == (
+            PYPROJECT.replace('version = "1.0.0"  #', 'version = "1.1.0"  #')
+            .replace('current_version = "1.0.0"', 'current_version = "1.1.0"')
+        )
+        assert '"other==1.0.0"' in out["pyproject.toml"]
+        assert out["src.py"] == '__version__ = "1.1.0"\n'
+
+    def test_bumpversion_toml_with_parts_and_serialize(self, tmp_path, monkeypatch):
+        config = '''[tool.bumpversion]
+current_version = "1.0.0-dev"
+parse = "(?P<major>\\\\d+)\\\\.(?P<minor>\\\\d+)\\\\.(?P<patch>\\\\d+)(-(?P<release>\\\\w+))?"
+serialize = ["{major}.{minor}.{patch}-{release}", "{major}.{minor}.{patch}"]
+
+[tool.bumpversion.parts.release]
+optional_value = "final"
+values = ["dev", "final"]
+
+[[tool.bumpversion.files]]
+filename = "VERSION"
+'''
+        out = _run_core(tmp_path, monkeypatch,
+                        {".bumpversion.toml": config, "VERSION": "1.0.0-dev\n"}, "release")
+        assert out["VERSION"] == "1.0.0\n"
+        assert 'current_version = "1.0.0"' in out[".bumpversion.toml"]
+
+    def test_same_file_listed_twice_with_different_searches(self, tmp_path, monkeypatch):
+        config = '''[tool.bumpversion]
+current_version = "1.0.0"
+
+[[tool.bumpversion.files]]
+filename = "app.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "app.json"
+search = '"runtimeVersion": "{current_version}"'
+replace = '"runtimeVersion": "{new_version}"'
+'''
+        app = '{"version": "1.0.0", "runtimeVersion": "1.0.0", "sdk": "1.0.0"}\n'
+        out = _run_core(tmp_path, monkeypatch, {".bumpversion.toml": config, "app.json": app}, "patch")
+        assert out["app.json"] == '{"version": "1.0.1", "runtimeVersion": "1.0.1", "sdk": "1.0.0"}\n'
+
+    def test_unsupported_option_is_ignored_with_a_warning(self, tmp_path, monkeypatch, caplog):
+        config = '[tool.bumpversion]\ncurrent_version = "1.0.0"\nsetup_hooks = ["echo hi"]\n\n' \
+                 '[[tool.bumpversion.files]]\nfilename = "VERSION"\nregex = true\n'
+        out = _run_core(tmp_path, monkeypatch, {".bumpversion.toml": config, "VERSION": "1.0.0\n"}, "patch")
+        assert out["VERSION"] == "1.0.1\n"
+        assert "setup_hooks" in caplog.text and "regex" in caplog.text
+
+
+class TestConfigDiscovery:
+    def test_order(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
+        assert cli._determine_config_file(None) == ".bumpversion.cfg"
+        (tmp_path / "setup.cfg").write_text("[metadata]\n")
+        assert cli._determine_config_file(None) == "setup.cfg"
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        assert cli._determine_config_file(None) == "setup.cfg"
+        (tmp_path / "pyproject.toml").write_text('[tool.bumpversion]\ncurrent_version = "1.0.0"\n')
+        assert cli._determine_config_file(None) == "pyproject.toml"
+        (tmp_path / ".bumpversion.toml").write_text("")
+        assert cli._determine_config_file(None) == ".bumpversion.toml"
+        (tmp_path / ".bumpversion.cfg").write_text("")
+        assert cli._determine_config_file(None) == ".bumpversion.cfg"
+        monkeypatch.setenv("BUMP2V_CONFIG", "custom.cfg")
+        assert cli._determine_config_file(None) == "custom.cfg"
+        assert cli._determine_config_file("explicit.cfg") == "explicit.cfg"
+
+
+class TestSameFileTwice:
+    def test_ini_file_sections_with_suffix_both_apply(self, tmp_path, monkeypatch):
+        cfg = (b'[bumpversion]\ncurrent_version = 1.0.0\n\n'
+               b'[bumpversion:file:app.json]\nsearch = "version": "{current_version}"\nreplace = "version": "{new_version}"\n\n'
+               b'[bumpversion:file(2):app.json]\nsearch = "runtimeVersion": "{current_version}"\n'
+               b'replace = "runtimeVersion": "{new_version}"\n')
+        out = _bump(tmp_path, monkeypatch, cfg,
+                    {"app.json": b'{"version": "1.0.0", "runtimeVersion": "1.0.0", "sdk": "1.0.0"}\n'})
+        assert out["app.json"] == b'{"version": "1.0.1", "runtimeVersion": "1.0.1", "sdk": "1.0.0"}\n'

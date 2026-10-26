@@ -204,18 +204,20 @@ def _positional_indexes(args):
 
 def _part_names(args):
     """The version part names the config's `parse` regex defines (major, minor, patch, ...)."""
-    config_file = ".bumpversion.cfg"
+    explicit = None
     if "--config-file" in args and args.index("--config-file") + 1 < len(args):
-        config_file = args[args.index("--config-file") + 1]
-    elif not os.path.exists(config_file) and os.path.exists("setup.cfg"):
-        config_file = "setup.cfg"
+        explicit = args[args.index("--config-file") + 1]
     parse = r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
     try:
-        config = configparser.RawConfigParser()
-        config.read(config_file, encoding="utf-8-sig")
-        parse = config.get("bumpversion", "parse", fallback=parse)
+        config_file = core._determine_config_file(explicit)
+        if config_file.endswith(".toml"):
+            parse = (core._toml_table(config_file) or {}).get("parse", parse)
+        else:
+            config = configparser.RawConfigParser()
+            config.read(config_file, encoding="utf-8-sig")
+            parse = config.get("bumpversion", "parse", fallback=parse)
         return set(re.compile(parse, re.VERBOSE).groupindex)
-    except (configparser.Error, re.error, OSError):
+    except (configparser.Error, re.error, OSError, ValueError):
         return {"major", "minor", "patch"}
 
 

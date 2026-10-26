@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import sys
+import tomllib
 import warnings
 from configparser import (
     ConfigParser,
@@ -231,10 +232,17 @@ def _compute_plan(args, known_args, root_parser, positionals):
         in (file_names or positionals[1:])
     )
     _check_files_contain_version(files, current_version, context, getattr(args, "ignore_missing_version", False))
-    changes = [f.compute_replacement(current_version, new_version, context) for f in files]
+    changes = _compute_changes(files, current_version, new_version, context)
     config_text, config_change = _compute_config_update(
         config, config_file, config_newlines, config_file_exists, args.new_version,
     )
+    if config_change and config_file.endswith(".toml"):
+        # pyproject.toml is often both the config and a bumped file: apply both
+        # edits to one text instead of letting the second write undo the first.
+        for change in changes:
+            if os.path.normpath(change.path) == os.path.normpath(config_file):
+                change.after = _toml_set_current_version(change.after, args.new_version, config_file)
+                config_change = None
 
     return Plan(
         changes=changes,
@@ -389,12 +397,119 @@ def _determine_current_version(vcs_info):
     return defaults
 
 
+TOML_TABLE = ("tool", "bumpversion")
+
+
+def _toml_table(path):
+    """The [tool.bumpversion] table of a TOML file, or None if it has none."""
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    return data.get(TOML_TABLE[0], {}).get(TOML_TABLE[1])
+
+
 def _determine_config_file(explicit_config):
+    """Where the config lives. First found wins: --config-file, $BUMP2V_CONFIG,
+    .bumpversion.cfg, .bumpversion.toml, pyproject.toml with [tool.bumpversion],
+    setup.cfg."""
     if explicit_config:
         return explicit_config
-    if not os.path.exists(".bumpversion.cfg") and os.path.exists("setup.cfg"):
+    if os.environ.get("BUMP2V_CONFIG"):
+        return os.environ["BUMP2V_CONFIG"]
+    for candidate in (".bumpversion.cfg", ".bumpversion.toml"):
+        if os.path.exists(candidate):
+            return candidate
+    if os.path.exists("pyproject.toml"):
+        try:
+            if _toml_table("pyproject.toml") is not None:
+                return "pyproject.toml"
+        except tomllib.TOMLDecodeError:
+            pass
+    if os.path.exists("setup.cfg"):
         return "setup.cfg"
     return ".bumpversion.cfg"
+
+
+# [tool.bumpversion] options bump2v understands; anything else is reported and ignored.
+_TOML_FILE_KEYS = {"search", "replace", "parse", "serialize", "ignore_missing_version", "replace_all"}
+_TOML_PART_KEYS = {"values", "optional_value", "first_value"}
+
+
+def _toml_value(value):
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if isinstance(value, list):
+        return "\n".join(str(v) for v in value)
+    return str(value)
+
+
+def _fill_config_from_toml(config_file, config):
+    """Fill `config` from the [tool.bumpversion] table (bump-my-version's format), so
+    the rest of the loader sees the same sections an INI file would give it."""
+    table = _toml_table(config_file)
+    if table is None:
+        raise ValueError("{} has no [tool.bumpversion] table".format(config_file))
+
+    for key, value in table.items():
+        if key in ("files", "parts"):
+            continue
+        if isinstance(value, dict) or (isinstance(value, list) and key != "serialize"):
+            logger.warning("Ignoring unsupported option %s in %s", key, config_file)
+            continue
+        config.set("bumpversion", key, _toml_value(value))
+
+    seen = {}
+    for entry in table.get("files", []):
+        kind = "glob" if "glob" in entry else "file"
+        target = entry.get("glob") or entry.get("filename")
+        if not target:
+            logger.warning("Ignoring a [[tool.bumpversion.files]] entry without filename or glob")
+            continue
+        # The same file can appear twice with different searches; INI section
+        # names must be unique, and bumpversion:file(N):path is the INI way.
+        seen[target] = seen.get(target, 0) + 1
+        suffix = "({})".format(seen[target]) if seen[target] > 1 else ""
+        section = "bumpversion:{}{}:{}".format(kind, suffix, target)
+        config.add_section(section)
+        for key, value in entry.items():
+            if key in ("filename", "glob"):
+                continue
+            if key not in _TOML_FILE_KEYS:
+                logger.warning("Ignoring unsupported option %s for %s", key, target)
+                continue
+            config.set(section, key, _toml_value(value))
+
+    for name, part in table.get("parts", {}).items():
+        section = "bumpversion:part:{}".format(name)
+        config.add_section(section)
+        for key, value in part.items():
+            if key not in _TOML_PART_KEYS:
+                logger.warning("Ignoring unsupported option %s for part %s", key, name)
+                continue
+            config.set(section, key, _toml_value(value))
+
+
+_TOML_HEADER = re.compile(r"^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$")
+_TOML_CURRENT_VERSION = re.compile(r"""^(\s*current_version\s*=\s*)(["'])(.*?)\2""")
+
+
+def _toml_set_current_version(text, new_version, path):
+    """Set current_version under [tool.bumpversion], changing only that line."""
+    lines = text.splitlines(keepends=True)
+    table = None
+    for i, line in enumerate(lines):
+        header = _TOML_HEADER.match(line.rstrip("\r\n"))
+        if header:
+            table = header.group(1).replace(" ", "")
+            continue
+        if table == ".".join(TOML_TABLE):
+            match = _TOML_CURRENT_VERSION.match(line)
+            if match:
+                quote = match.group(2)
+                lines[i] = match.group(1) + quote + new_version + quote + line[match.end():]
+                return "".join(lines)
+    raise ValueError(
+        'Could not find current_version = "..." under [tool.bumpversion] in {}'.format(path)
+    )
 
 
 def _to_bool(value, option, section):
@@ -429,7 +544,10 @@ def _load_configuration(config_file, explicit_config, defaults):
         config_newlines = config_fp.newlines
 
     logger.info(config_content)
-    config.read_string(config_content)
+    if config_file.endswith(".toml"):
+        _fill_config_from_toml(config_file, config)
+    else:
+        config.read_string(config_content)
     log_config = io.StringIO()
     config.write(log_config)
 
@@ -451,7 +569,7 @@ def _load_configuration(config_file, explicit_config, defaults):
             pass
 
     for boolvaluename in ("commit", "tag", "dry_run", "sign_tags", "ignore_missing_version",
-                          "replace_all", "push"):
+                          "replace_all", "push", "allow_dirty"):
         try:
             defaults[boolvaluename] = config.getboolean(
                 "bumpversion", boolvaluename
@@ -811,6 +929,22 @@ def _log_list(config, new_version):
     config.remove_option("bumpversion", "new_version")
 
 
+def _compute_changes(files, current_version, new_version, context):
+    """One FileChange per file. A file listed more than once (different searches)
+    gets its edits applied one after another to the same text."""
+    changes = {}
+    for f in files:
+        key = os.path.normpath(f.path)
+        previous = changes.get(key)
+        change = f.compute_replacement(current_version, new_version, context, previous)
+        if previous is None:
+            changes[key] = change
+        else:
+            previous.after = change.after
+            previous.matches += change.matches
+    return list(changes.values())
+
+
 def _compute_config_update(config, config_file, config_newlines, config_file_exists,
                            new_version):
     """The config file's text with current_version set to new_version.
@@ -818,6 +952,11 @@ def _compute_config_update(config, config_file, config_newlines, config_file_exi
     Returns (text, FileChange or None). `config` itself is left unchanged. The
     file is written with one newline style: its own, or \\n if it mixed them.
     """
+    if config_file.endswith(".toml") and config_file_exists:
+        before, had_bom = read_text_raw(config_file)
+        after = _toml_set_current_version(before, new_version, config_file)
+        return after, FileChange(config_file, before, after, had_bom)
+
     had_option = config.has_option("bumpversion", "current_version")
     previous = config.get("bumpversion", "current_version", raw=True) if had_option else None
     config.set("bumpversion", "current_version", new_version)

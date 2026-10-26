@@ -21,7 +21,7 @@ pyproject.toml          # Package metadata and dependencies (no external deps)
 requirements.txt        # Empty — no dependencies
 .bumpversion.cfg        # bump2v uses itself to version itself
 .github/workflows/
-  test.yml              # Tests on every push to main and every PR (Python 3.10–3.15, Linux/macOS/Windows)
+  test.yml              # Tests on every push to main and every PR (Python 3.11–3.15, Linux/macOS/Windows)
   pypi-publish.yml      # Publishes to PyPI on every git tag push (v*), after the tests pass
 tests/                  # pytest suite (see Tests below)
 docs/
@@ -142,7 +142,7 @@ pytest --tb=short -q
 
 bump2v does **not** run the tests for you before it pushes (that was removed in `a92e5ec`), so run
 them yourself before `bump2v patch|minor|major`. CI runs them in two places:
-1. **`test.yml`** on every push to main and every PR, across Python 3.10–3.15 on Linux, macOS and Windows.
+1. **`test.yml`** on every push to main and every PR, across Python 3.11–3.15 on Linux, macOS and Windows.
 2. **`pypi-publish.yml`** as a required job before building and publishing.
 
 Integration tests that commit, tag and push use a throwaway repo and a bare remote under
