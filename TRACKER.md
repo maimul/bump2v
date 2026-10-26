@@ -14,6 +14,7 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-023 Team pilot, round 2: one repo first (pilot PR prepared), then the rest: the bump2v Action with a concurrency group, build the version commit, skip duplicate deploys, bump only on the dev branch, drop bump2v from runtime requirements. Team-repo writes are run by the user.
 
 ## Next
+- T-024 Revoke the old PyPI API token on pypi.org (it was removed from GitHub, but stays valid until revoked). Only the user can do this.
 - T-014 Roadmap Phase 3, rest: GitLab component, pre-commit hook, Docker image, docs site, Marketplace listing, a moving `v1` tag for the Action.
 - T-013 Roadmap Phase 2: structured JSON/TOML/YAML/XML edits, presets, schemes and build counters, prereleases and environment-suffixed versions (`{version}-dev.{run}`, OCI-safe), tag-only targets, monorepo, hooks.
 - T-020 `check --unreleased` (refuse a version that is already published, for promotion to prod) and `check --branches dev,staging,main` (version drift across branches).
@@ -24,10 +25,10 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-003 The `testing` branch is stale (last commit at 1.1.16). Delete it once the user confirms.
 
 ## Blocked
-- T-018 Delete the unused PyPI token secret, `PYPI_USERNAME` variable and `PYPI_API_TOKEN` environment from this repo, and revoke the token on pypi.org. Secret-store writes are blocked for Claude. Unblocks: user (command handed over 2026-10-26).
 - T-009 Team pilot pin PRs: 12 of 13 open. The last one (a second dev branch in one repo) needs its own branch name; the user runs the command. Unblocks: user.
 
 ## Done
+- T-018 2026-10-26 Removed the unused PyPI token secret, `PYPI_USERNAME` variable and `PYPI_API_TOKEN` environment; only the `pypi` environment (Trusted Publishing) remains. sync: —
 - T-022 2026-10-26 1.8.0/1.8.1 on PyPI: `--sync`, `--retry`, `--github-output`, `show` fails on a missing value, the GitHub Action; 1.8.1 fixes Windows (git output decoded as UTF-8, init paths with /). Action verified on Linux, macOS and Windows; tests now gate publishing on all three OSes. sync: —
 - T-019 2026-10-26 1.7.1 on PyPI: branch and tag pushed atomically, so a rejected push leaves no orphan tag (`4572d22`; test fails on the old code). sync: —
 - T-008 2026-10-26 Team pipeline audit (dev/stg/prod): failures came from how pipelines call bump2v (push races, non-atomic tag push, missing config, branch rules), not from bump2v; no pipeline parses its output. Report kept outside this public repo. sync: —
