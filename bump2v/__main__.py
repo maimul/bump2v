@@ -38,6 +38,8 @@ usage: bump2v <part|auto> [options]          bump, commit, tag and push
        bump2v release <part|auto> [options]  same as `bump2v <part>`, named explicitly
        bump2v show [field ...]               print the current version and settings
        bump2v check                          check every configured file has the current version
+       bump2v init [--agents]                write a config for this project; --agents also adds
+                                             release instructions to CLAUDE.md or AGENTS.md
 
 <part> is major, minor or patch (or a part from your config). `auto` picks it from
 the Conventional Commits since the last release.
@@ -226,7 +228,7 @@ def _select_command(args):
     follows it; on its own it is still the bump2version part named `release`."""
     if args and args[0] == "bump":
         return "bump", args[1:]
-    if args and args[0] in ("plan", "show", "check"):
+    if args and args[0] in ("plan", "show", "check", "init"):
         return args[0], args[1:]
     if args and args[0] == "release":
         rest = args[1:]
@@ -585,12 +587,76 @@ def cmd_check(args, opts, out):
     return result
 
 
+def _has_config():
+    config_file = core._determine_config_file(None)
+    if not os.path.exists(config_file):
+        return None
+    if config_file == "setup.cfg":
+        parser = configparser.RawConfigParser()
+        parser.read(config_file, encoding="utf-8-sig")
+        if not parser.has_section("bumpversion"):
+            return None
+    return config_file
+
+
+def cmd_init(args, opts, out):
+    from bump2v import init as setup
+
+    unknown = [a for a in args if a != "--agents"]
+    if unknown:
+        raise Failure(EXIT_USAGE, "usage", "Unknown argument for init: " + " ".join(unknown),
+                      hint="Usage: bump2v init [--agents]")
+
+    result = {"config_file": None, "created": False, "current_version": None,
+              "files": [], "skipped": [], "agents": None}
+    existing = _has_config()
+    if existing:
+        out.say(f"{existing} already exists; leaving it as it is.")
+        result["config_file"] = existing
+    else:
+        version, used, skipped = setup.choose(setup.detect())
+        result["skipped"] = [
+            {"path": s.path, "version": s.version, "note": s.note or f"has {s.version}, not {version}"}
+            for s in skipped
+        ]
+        if version is None:
+            raise Failure(
+                EXIT_VERSION_NOT_FOUND, "nothing_detected",
+                "Found no version to manage (looked for package.json, pyproject.toml, Cargo.toml, "
+                "Chart.yaml, pubspec.yaml, app.json, __version__ files and VERSION).",
+                hint="Write .bumpversion.cfg by hand; see 'Setup by project type' in the README.",
+                details=result,
+            )
+        with open(".bumpversion.cfg", "w", encoding="utf-8") as f:
+            f.write(setup.render_config(version, used))
+        result.update(config_file=".bumpversion.cfg", created=True, current_version=version,
+                      files=[s.as_dict() for s in used])
+        out.data(f"Wrote .bumpversion.cfg for version {version}:")
+        for s in used:
+            out.data(f"  {s.path:<30} {s.search}")
+        for s in result["skipped"]:
+            out.say(f"skipped {s['path']}: {s['note']}")
+        if not setup.SEMVER.match(version):
+            out.say(f"warning: {version} isn't MAJOR.MINOR.PATCH; set parse and serialize in "
+                    ".bumpversion.cfg before bumping (see the bump2version docs).")
+        out.say("Review it, commit it, then preview a release with: bump2v plan patch")
+
+    if "--agents" in args:
+        target = setup.agents_file()
+        added = setup.add_releasing_section(target, result["config_file"])
+        result["agents"] = {"file": target, "added": added}
+        out.say(f"Added a Releasing section to {target}." if added
+                else f"{target} already has a Releasing section; left as it is.")
+    return result
+
+
 COMMANDS = {
     "bump": cmd_bump,
     "release": cmd_bump,
     "plan": cmd_plan,
     "show": cmd_show,
     "check": cmd_check,
+    "init": cmd_init,
 }
 
 

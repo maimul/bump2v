@@ -8,7 +8,9 @@
 
 ```
 bump2v/
-  __main__.py           # CLI entry point — guards, dry-run preview, calls bumpversion.cli.main
+  __main__.py           # CLI entry point — subcommands, auto, guards, push; calls bumpversion.cli
+  output.py             # Messages vs data, --json shape, exit codes
+  init.py               # `bump2v init`: detect where a project keeps its version
   bumpversion/          # Vendored bump2version source (our fork — edit freely)
     cli.py              # Core logic: argument parsing, file replacement, git commit/tag
     vcs.py              # Git and Mercurial VCS integration
@@ -158,6 +160,9 @@ When adding a new feature or fixing a bug, add a corresponding test:
 | `bumpversion/cli.py` | `tests/test_cli.py` |
 | `bumpversion/vcs.py` | `tests/test_vcs.py` |
 | `bump2v/__main__.py` | `tests/test_auto.py` |
+| `bump2v/output.py` | `tests/test_output.py` |
+| `bump2v/init.py` | `tests/test_init.py` |
+| `bumpversion/utils.py` (file edits) | `tests/test_cli.py` |
 
 ## Publishing checklist
 
