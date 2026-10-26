@@ -11,7 +11,7 @@ Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Research behind it: [docs/research/
 None. Personal repo with no team board, so `/track-sync` does not apply.
 
 ## Now
-- T-012 Roadmap Phase 1 → 1.7.0. Code complete, local only: core split (`0461d20`), safer file edits (`9553131`), plan/release/show/check + `--json` + exit codes + `--no-push` (`c3aa986`), TOML config and Python ≥3.11 (`631c2b1`), `init` (`3cd0c87`), docs (`0faadb5`), `auto` boundary + CI identity (`850bae1`). 116 tests green on 3.11 and 3.15; `bump2v plan auto` on this repo previews 1.6.2 → 1.7.0. Left: release with `bump2v minor`; the stricter "HEAD is a version commit" guard waits for T-008.
+- T-018 Remove the now-unused `BUMP2V` repo secret and `PYPI_API_TOKEN` environment from GitHub. Needs the user's OK (deletes credentials config).
 - T-008 Audit the team pipelines that run bump2v (dev/stg/prod): why they break, what to fix in the pipelines and in bump2v. Running in the background. Details stay out of this public repo.
 
 ## Next
@@ -24,9 +24,11 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-003 The `testing` branch is stale (last commit at 1.1.16). Delete it once the user confirms.
 
 ## Blocked
-- T-010 Trusted Publishing is wired (`b95315e`, not yet pushed) but the next release will fail until the user adds a trusted publisher on PyPI: owner `maimul`, repo `bump2v`, workflow `pypi-publish.yml`, environment `pypi`. Unblocks: user. Then delete the `BUMP2V` secret and `PYPI_API_TOKEN` environment.
+- (none)
 
 ## Done
+- T-012 2026-10-26 1.7.0 on PyPI (wheel + sdist, requires-python >=3.11): plan/release/show/check/init, `--json`, exit codes, `--no-push`, TOML config, safer file edits, `auto` by tag_name or version commit. Installed fresh on 3.15 and run. sync: —
+- T-010 2026-10-26 Published 1.7.0 through Trusted Publishing (run 40291785502); PyPI shows a provenance attestation from `pypi-publish.yml`. sync: —
 - T-007 2026-10-26 1.6.2 on PyPI: never pushes on `--dry-run`/no commit (`3cea284`), runs on Python 3.15 (`sre_constants` removed, `6e71693`). sync: —
 - T-002 2026-10-26 `test.yml` green on 3.10–3.15 × ubuntu/macos/windows (run 40285273117); CLAUDE.md corrected. sync: —
 - T-011 2026-10-26 Scratch notebook removed; local builds no longer ship the `bump2version/` clone (`b95315e`). sync: —
