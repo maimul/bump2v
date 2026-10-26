@@ -49,7 +49,7 @@ class TestJson:
         out.data("human line")
         out.result("plan", {"new_version": "1.0.1"})
         printed = json.loads(capsys.readouterr().out)
-        assert printed == {"format_version": "1.0", "command": "plan", "ok": True, "new_version": "1.0.1"}
+        assert printed == {"format_version": "1.1", "command": "plan", "ok": True, "new_version": "1.0.1"}
 
     def test_failure_shape(self, capsys):
         Output(json_mode=True).failure(
