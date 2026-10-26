@@ -416,3 +416,36 @@ class TestCiIdentity:
         assert code == 0
         assert _git(work, "log", "-1", "--format=%an <%ae>") == \
             "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+
+
+class TestAtomicPush:
+    def test_rejected_push_leaves_no_tag_on_the_remote(self, repo, tmp_path, monkeypatch, capsys):
+        work, remote = repo
+        other = tmp_path / "other"
+        _git(tmp_path, "clone", "-q", str(remote), str(other))
+        _git(other, "config", "user.name", "Other")
+        _git(other, "config", "user.email", "other@example.com")
+        _commit(other, "other.txt", "fix: pushed first by another run")
+        _git(other, "push", "-q")
+        code, result = _json(monkeypatch, capsys, "patch")
+        assert code == 6 and result["error"]["code"] == "push_failed" and result["error"]["retryable"]
+        assert _git(remote, "tag", "--list") == ""
+        assert _git(work, "tag", "--list") == "v1.0.1"  # still there locally to push later
+
+    def test_falls_back_when_the_remote_cannot_push_atomically(self, monkeypatch):
+        calls = []
+
+        class Result:
+            def __init__(self, returncode, stderr=""):
+                self.returncode, self.stderr = returncode, stderr
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            if "--atomic" in cmd:
+                return Result(128, "fatal: the receiving end does not support --atomic push\n")
+            return Result(0)
+
+        monkeypatch.setattr(bump2v_main.subprocess, "run", run)
+        assert bump2v_main._push_branch_and_tags()
+        assert calls == [["git", "push", "--atomic", "--follow-tags"], ["git", "push"],
+                         ["git", "push", "--follow-tags"]]

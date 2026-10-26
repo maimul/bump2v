@@ -498,7 +498,7 @@ def _push_if_needed(out, push, dry_run, before, after):
             hint="Check out a branch before bumping (in GitHub Actions, pull_request "
                  "events check out a detached merge commit), or pass --no-push.",
         )
-    if subprocess.run(["git", "push", "--follow-tags"]).returncode != 0:
+    if not _push_branch_and_tags():
         raise Failure(
             EXIT_PUSH_FAILED, "push_failed",
             "Failed to push changes to the remote repository. The version commit and "
@@ -509,6 +509,26 @@ def _push_if_needed(out, push, dry_run, before, after):
         )
     out.say("Pushed.", f"Yay! 😺🎉 Push successful. {okay}")
     return True
+
+
+def _push_branch_and_tags():
+    """Push the branch and its new tag together, or neither.
+
+    A plain `git push --follow-tags` sends the tag even when the branch is rejected
+    (another run pushed first, a branch rule), leaving a tag on the remote for a
+    commit that isn't on any branch; the next bump to that version then fails.
+    """
+    push = subprocess.run(["git", "push", "--atomic", "--follow-tags"],
+                          stderr=subprocess.PIPE, text=True)
+    sys.stderr.write(push.stderr)
+    if push.returncode == 0:
+        return True
+    if "does not support --atomic" not in push.stderr:
+        return False
+    # The remote can't do atomic pushes: push the branch first, the tags only once it landed.
+    if subprocess.run(["git", "push"]).returncode != 0:
+        return False
+    return subprocess.run(["git", "push", "--follow-tags"]).returncode == 0
 
 
 def _settings(args):

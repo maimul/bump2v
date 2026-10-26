@@ -210,6 +210,7 @@ replace = __version__ = "{new_version}"
 - `--no-push` commits and tags without pushing, for jobs that push later or not at all.
 - Pushes made with `GITHUB_TOKEN` don't start new workflow runs, so the version commit won't trigger the pipeline again. Use a `concurrency` group so two releases never race.
 - bump2v stops before writing anything if the new tag already exists (exit 5), and keeps the commit and tag local if HEAD is detached (exit 6).
+- The branch and the tag are pushed together (`git push --atomic`): if the push is rejected because another run pushed first, no tag is left behind on the remote to block the next bump.
 
 ---
 
