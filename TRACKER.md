@@ -28,6 +28,7 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - (none)
 
 ## Done
+- T-026 2026-10-26 1.9.0 (`auto` classifies a merge commit by its PR title, from a real-history check: up to two-thirds of team PR titles are conventional) and 1.9.2 (outputs written when HEAD is a [skip ci] version commit; tests use explicit UTF-8 and CI fails on default encodings). 1.9.1 was blocked by the pre-publish gate on a Windows-only test bug and never published. sync: —
 - T-025 2026-10-26 1.8.2 on PyPI: `auto` ignores tags when tag = False (it had counted from tags left over from before tagging was turned off and planned a major bump). Tests, Action (3 OSes) and publish green. sync: —
 - T-009 2026-10-26 Team pilot: all 13 pin PRs (`bump2v>=1.6.2,<2`) open and mergeable; the round-2 pilot PR (move one pipeline to the Action) is open too. Merging is the team's call. sync: —
 - T-018 2026-10-26 Removed the unused PyPI token secret, `PYPI_USERNAME` variable and `PYPI_API_TOKEN` environment; only the `pypi` environment (Trusted Publishing) remains. sync: —
