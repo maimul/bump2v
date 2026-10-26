@@ -11,8 +11,6 @@ Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Research behind it: [docs/research/
 None. Personal repo with no team board, so `/track-sync` does not apply.
 
 ## Now
-- T-019 Atomic push (branch and tag land together, no orphan tags on a rejected push), `4572d22`; release as 1.7.1.
-- T-009 Team pilot: one PR per pipeline pinning `bump2v>=1.6.2,<2` (approved). Further pipeline fixes from the audit (concurrency group, bump from the remote tip, build the version commit) and deleting stale tags need the user's OK first. Details live outside this repo.
 - T-018 Remove the now-unused `BUMP2V` repo secret and `PYPI_API_TOKEN` environment from GitHub. Needs the user's OK (deletes credentials config).
 
 ## Next
@@ -26,9 +24,10 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-003 The `testing` branch is stale (last commit at 1.1.16). Delete it once the user confirms.
 
 ## Blocked
-- (none)
+- T-009 Team pilot: one PR per repo pinning `bump2v>=1.6.2,<2` (approved). The 13 one-line changes are ready in local clones, but pushing to the team repos was blocked by the permission check. Unblocks: user (run the prepared script or allow the push). Further pipeline fixes and deleting stale tags need the user's OK.
 
 ## Done
+- T-019 2026-10-26 1.7.1 on PyPI: branch and tag pushed atomically, so a rejected push leaves no orphan tag (`4572d22`; test fails on the old code). sync: —
 - T-008 2026-10-26 Team pipeline audit (dev/stg/prod): failures came from how pipelines call bump2v (push races, non-atomic tag push, missing config, branch rules), not from bump2v; no pipeline parses its output. Report kept outside this public repo. sync: —
 - T-012 2026-10-26 1.7.0 on PyPI (wheel + sdist, requires-python >=3.11): plan/release/show/check/init, `--json`, exit codes, `--no-push`, TOML config, safer file edits, `auto` by tag_name or version commit. Installed fresh on 3.15 and run. sync: —
 - T-010 2026-10-26 Published 1.7.0 through Trusted Publishing (run 40291785502); PyPI shows a provenance attestation from `pypi-publish.yml`. sync: —
