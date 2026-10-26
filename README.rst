@@ -195,6 +195,7 @@ work is a patch or a minor.
 - ``feat:`` -> minor
 - ``fix:``, ``perf:``, ``refactor:``, ``chore:``, ``docs:``, etc. -> patch
 - Scopes are supported: ``feat(auth):`` counts as ``feat``
+- For a merge commit (``Merge pull request #12 from ...``), the PR title on the first line of its body counts, so ``feat: ...`` PR titles work even when the commits inside are not conventional
 - The **highest** level found across all commits wins
 
 **Example output:**

@@ -112,6 +112,28 @@ class TestClassifyCommits:
         assert rows[0] == ("fix: one small thing", "patch")
         assert found
 
+    # --- merge commits: the PR title in the body decides ---
+
+    def test_merge_commit_uses_the_pr_title(self):
+        msg = "Merge pull request #12 from org/add-exports\n\nfeat: add CSV exports"
+        level, rows, found = _classify_commits([msg])
+        assert level == "minor" and rows == [("feat: add CSV exports", "minor")] and found
+
+    def test_merge_commit_with_breaking_pr_title(self):
+        msg = "Merge pull request #13 from org/v2-api\n\nfeat(api)!: drop v1 endpoints"
+        level, _, _ = _classify_commits([msg])
+        assert level == "major"
+
+    def test_merge_branch_without_body_stays_unclassified(self):
+        level, rows, found = _classify_commits(["Merge branch 'staging' into development"])
+        assert level == "patch" and rows == [("Merge branch 'staging' into development", None)]
+        assert not found
+
+    def test_prose_in_a_pr_title_is_not_a_level(self):
+        msg = "Merge pull request #24 from org/lockfile\n\nUpdate the lockfile so the major CI runs"
+        level, _, found = _classify_commits([msg])
+        assert level == "patch" and not found
+
     # --- rows content ---
 
     def test_rows_first_line_only(self):

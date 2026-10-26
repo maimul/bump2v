@@ -66,6 +66,8 @@ exit codes: 0 ok, 1 error, 2 usage, 3 dirty tree, 4 version not found in a file,
 # Conventional Commits: type(scope)!: or type!: or type(scope): or type:
 _CC_HEADER = re.compile(r'^(?P<type>[a-z]+)(?:\([^)]+\))?(?P<breaking>!)?\s*:')
 _CC_BREAKING_FOOTER = re.compile(r'^BREAKING[ -]CHANGE\s*:', re.MULTILINE)
+# GitHub and GitLab merge commits: the PR title is the first line of the body.
+_MERGE_SUBJECT = re.compile(r'^Merge (pull request|branch|remote-tracking branch) ')
 _MINOR_TYPES = frozenset({"feat"})
 
 def _classify_commits(messages):
@@ -86,7 +88,14 @@ def _classify_commits(messages):
         msg = msg.strip()
         if not msg:
             continue
-        first_line = msg.splitlines()[0].strip()
+        lines = msg.splitlines()
+        first_line = lines[0].strip()
+        # A merge commit says nothing itself; the PR title in its body does
+        # ("Merge pull request #12 from org/branch" + "feat: add exports").
+        if _MERGE_SUBJECT.match(first_line):
+            title = next((line.strip() for line in lines[1:] if line.strip()), None)
+            if title:
+                first_line = title
 
         # BREAKING CHANGE: in footer takes priority over header analysis
         if _CC_BREAKING_FOOTER.search(msg):

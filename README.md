@@ -91,7 +91,7 @@ If your config defines a part named `release`, `bump2v release` on its own still
 | `fix: ...`, `chore: ...`, anything else | patch |
 | `feat!: ...`, or a `BREAKING CHANGE:` footer | major |
 
-Scopes count (`feat(auth):` is `feat`), and the highest level across all the commits wins. With no earlier release it bumps patch. With nothing new since the last release it stops with exit code 7. In CI, check out the full history (`fetch-depth: 0` in GitHub Actions); a shallow clone that hides the last release fails with exit code 1 instead of guessing.
+Scopes count (`feat(auth):` is `feat`), and the highest level across all the commits wins. For a merge commit (`Merge pull request #12 from …`), the PR title on the first line of its body is what counts, so `feat: …` PR titles work even when the commits inside aren't conventional. With no earlier release it bumps patch. With nothing new since the last release it stops with exit code 7. In CI, check out the full history (`fetch-depth: 0` in GitHub Actions); a shallow clone that hides the last release fails with exit code 1 instead of guessing.
 
 ---
 
