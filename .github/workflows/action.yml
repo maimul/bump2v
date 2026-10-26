@@ -76,8 +76,10 @@ jobs:
           test "$PUSHED" = true
           cd "$RUNNER_TEMP/remote.git"
           test "$(git rev-parse main)" = "$SHA"
-          git log --format=%s main | grep -qx "fix: the other run"
-          git tag --list | grep -qx v1.1.0
+          # grep without -q reads all its input: with -q it can exit early, and the
+          # writer's SIGPIPE fails the step under pipefail.
+          git log --format=%s main | grep -x "fix: the other run" > /dev/null
+          git tag --list | grep -x v1.1.0 > /dev/null
 
       - id: again
         uses: ./
