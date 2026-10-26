@@ -11,7 +11,7 @@ Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Research behind it: [docs/research/
 None. Personal repo with no team board, so `/track-sync` does not apply.
 
 ## Now
-- T-023 Team pilot, round 2. Pilot repo merged; first run green (bumped from the right tag, commit and tag in one push, built the version commit). 9 more repos prepared on 1.8.2 (a dry run on their real histories found and fixed the tag = False bug first); the user opens those PRs. Left after that: the 2 repos with a different layout (one bumps in every environment), and a decision on a branch where CI may not push.
+- T-023 Team pilot, round 2: pilot repo proven; 11 more PRs open (all pinned to 1.9.2) plus the pilot's move to 1.9.2. Waiting on the team to merge, then check each first run. Open decisions for the team: bump once on the dev branch in the repo that still bumps per environment; whether CI should bump on a branch that rejects CI pushes.
 
 ## Next
 - T-024 Revoke the old PyPI API token on pypi.org (it was removed from GitHub, but stays valid until revoked). Only the user can do this.
