@@ -561,9 +561,8 @@ def cmd_plan(args, opts, out):
 
 
 def cmd_bump(args, opts, out):
-    _guard_version_commit()
-
     if "--tag-only" in args:
+        _guard_version_commit()
         before = _git_state()
         _core_call(core.main, args)
         after = _git_state()
@@ -573,6 +572,7 @@ def cmd_bump(args, opts, out):
     attempts = 1 + opts["retry"]
     sync = opts["sync"] or opts["retry"] > 0
     try:
+        _guard_version_commit()
         for attempt in range(1, attempts + 1):
             try:
                 return _bump_once(args, opts, out, sync, attempt)

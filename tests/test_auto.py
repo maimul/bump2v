@@ -601,6 +601,21 @@ class TestGithubOutput:
         assert outputs["version"] == "1.0.1" and outputs["bumped"] == "false"
 
 
+class TestSkipCiGuardOutputs:
+    def test_outputs_are_written_when_head_is_a_skip_ci_version_commit(self, ci_repo, tmp_path, monkeypatch, capsys):
+        work, _ = ci_repo
+        cfg = work / ".bumpversion.cfg"
+        cfg.write_text(cfg.read_text().replace("tag = True\n", "tag = True\nmessage = Version Updated: {current_version} → {new_version} [skip ci]\n"))
+        _git(work, "commit", "-q", "-am", "chore: skip ci in version commits")
+        _json(monkeypatch, capsys, "release", "patch")
+        out_file = tmp_path / "github_output"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--github-output")
+        assert code == 7 and result["error"]["code"] == "nothing_to_release"
+        outputs = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        assert outputs["version"] == "1.0.1" and outputs["bumped"] == "false"
+
+
 def test_show_fails_loudly_without_a_version(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("BUMP2V_CONFIG", raising=False)
