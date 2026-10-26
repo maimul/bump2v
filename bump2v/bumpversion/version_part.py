@@ -1,6 +1,5 @@
 import logging
 import re
-import sre_constants
 import string
 
 from .exceptions import (
@@ -137,7 +136,7 @@ class VersionConfig:
 
         try:
             self.parse_regex = re.compile(parse, re.VERBOSE)
-        except sre_constants.error as e:
+        except re.error as e:
             logger.error("--parse '%s' is not a valid regex", parse)
             raise e
 

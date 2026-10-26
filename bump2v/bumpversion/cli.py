@@ -1,12 +1,11 @@
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 import glob
 import io
 import itertools
 import logging
 import os
 import re
-import sre_constants
 import sys
 import warnings
 from configparser import (
@@ -52,7 +51,7 @@ RE_DETECT_SECTION_TYPE = re.compile(
 
 logger_list = logging.getLogger("bumpversion.list")
 logger = logging.getLogger(__name__)
-time_context = {"now": datetime.now(), "utcnow": datetime.utcnow()}
+time_context = {"now": datetime.now(), "utcnow": datetime.now(timezone.utc).replace(tzinfo=None)}
 special_char_context = {c: c for c in ("#", ";")}
 
 
@@ -472,7 +471,7 @@ def _setup_versionconfig(known_args, part_configs):
             replace=known_args.replace,
             part_configs=part_configs,
         )
-    except sre_constants.error:
+    except re.error:
         sys.exit(1)
     return version_config
 
