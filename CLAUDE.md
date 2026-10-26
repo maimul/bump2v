@@ -147,7 +147,9 @@ pytest --tb=short -q
 bump2v does **not** run the tests for you before it pushes (that was removed in `a92e5ec`), so run
 them yourself before `bump2v patch|minor|major`. CI runs them in two places:
 1. **`test.yml`** on every push to main and every PR, across Python 3.11–3.15 on Linux, macOS and Windows.
-2. **`pypi-publish.yml`** as a required job before building and publishing.
+2. **`pypi-publish.yml`** as a required job before building and publishing, on Linux, macOS and
+   Windows (Python 3.11 and the latest 3.x). Windows-only bugs (path separators, the console
+   codepage) reached PyPI once when this job ran on Linux alone.
 
 Integration tests that commit, tag and push use a throwaway repo and a bare remote under
 `tmp_path`, with `GIT_CONFIG_GLOBAL` pointed at an empty file (see the `repo` fixture in
