@@ -112,6 +112,16 @@ def _handle_tag_only(known_args):
     sys.exit(1)
 
 
+class Plan:
+    """Everything a bump will do, worked out before anything is written.
+
+    Built by compute_plan(), carried out by apply_plan().
+    """
+
+    def __init__(self, **fields):
+        self.__dict__.update(fields)
+
+
 def main(original_args=None):
     args, known_args, root_parser, positionals = _parse_arguments_phase_1(original_args)
     _setup_logging(known_args.list, known_args.verbose)
@@ -121,6 +131,18 @@ def main(original_args=None):
         _handle_tag_only(known_args)
         return
 
+    plan = _compute_plan(args, known_args, root_parser, positionals)
+    apply_plan(plan)
+
+
+def compute_plan(original_args=None):
+    """Parse the arguments and config and work out the bump, without writing anything."""
+    args, known_args, root_parser, positionals = _parse_arguments_phase_1(original_args)
+    _setup_logging(known_args.list, known_args.verbose)
+    return _compute_plan(args, known_args, root_parser, positionals)
+
+
+def _compute_plan(args, known_args, root_parser, positionals):
     vcs_info = _determine_vcs_usability()
     defaults = _determine_current_version(vcs_info)
     explicit_config = None
@@ -160,17 +182,41 @@ def main(original_args=None):
         in (file_names or positionals[1:])
     )
     _check_files_contain_version(files, current_version, context, getattr(args, "ignore_missing_version", False))
-    _replace_version_in_files(files, current_version, new_version, args.dry_run, context)
-    _log_list(config, args.new_version)
 
-    _update_config_file(
-        config, config_file, config_newlines, config_file_exists, args.new_version, args.dry_run,
+    return Plan(
+        args=args,
+        defaults=defaults,
+        config=config,
+        config_file=config_file,
+        config_file_exists=config_file_exists,
+        config_newlines=config_newlines,
+        files=files,
+        version_config=version_config,
+        current_version=current_version,
+        new_version=new_version,
+        context=context,
+        vcs=vcs,
     )
 
-    if vcs:
-        context = _commit_to_vcs(files, context, config_file, config_file_exists, vcs,
-                                 args, current_version, new_version)
-        _tag_in_vcs(vcs, context, args)
+
+def apply_plan(plan):
+    """Write the files and the config, then commit and tag. Honours --dry-run."""
+    args = plan.args
+    _replace_version_in_files(
+        plan.files, plan.current_version, plan.new_version, args.dry_run, plan.context
+    )
+    _log_list(plan.config, args.new_version)
+
+    _update_config_file(
+        plan.config, plan.config_file, plan.config_newlines, plan.config_file_exists,
+        args.new_version, args.dry_run,
+    )
+
+    if plan.vcs:
+        context = _commit_to_vcs(plan.files, plan.context, plan.config_file,
+                                 plan.config_file_exists, plan.vcs, args,
+                                 plan.current_version, plan.new_version)
+        _tag_in_vcs(plan.vcs, context, args)
 
 
 def split_args_in_optional_and_positional(args):
