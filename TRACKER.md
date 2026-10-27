@@ -24,7 +24,7 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-003 The `testing` branch is stale (last commit at 1.1.16). Delete it once the user confirms.
 
 ## Blocked
-- T-027 Team pilot, last repo: its audit gate blocks the first bump; fix ready on a local branch (lockfile + zod 4, Verify green on Node 20). Unblocks: the user (push, open the PR), then the repo owner (merge; bump-once decision).
+- T-027 Team pilot, last repo: its audit gate blocks the first bump; fix PR open 2026-10-27 (lockfile + zod 4, Verify green on Node 20 locally; no PR CI there). Unblocks: the repo owner (merge; bump-once decision); then check the first bump.
 - T-028 A team repo's second dev branch couldn't deploy: 15 orphan tags from pre-1.7.1 non-atomic pushes collided with its next version. Tags deleted 2026-10-27 (0 left on the remote). Unblocks: the team's next push to that branch (none since mid-September); then check it builds the next version.
 - T-024 Revoke the old PyPI API token on pypi.org (removed from GitHub, still valid until revoked). Unblocks: the user.
 
