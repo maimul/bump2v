@@ -55,8 +55,9 @@ launch, with `bump2v` kept as an alias.
 
 ### Phase 3: distribution
 - Done: the composite GitHub Action (runs from its own commit, outputs `version` and `sha`, 1.7–1.9),
-  a moving `v1` tag and a GitHub Release per version, the pre-commit hook `bump2v-check` (1.10).
-- Next: a Marketplace listing, a GitLab CI/CD component, a container image, a docs site.
+  a moving `v1` tag and a GitHub Release per version, the pre-commit hook `bump2v-check` (1.10),
+  the container image, GitLab CI/CD templates and the docs site with `llms.txt` (1.11).
+- Next: the Marketplace listing and the GitLab CI/CD Catalog (both need the owner's accounts).
 - Standalone binaries, Homebrew, npm and Scoop only when demand shows up.
 
 ### Phase 4: AI agents

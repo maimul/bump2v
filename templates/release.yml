@@ -18,9 +18,10 @@ spec:
     token:
       default: $BUMP2V_TOKEN
       description: >-
-        What to push with: a project access token (role Maintainer, scope write_repository) in a
-        masked CI/CD variable. When it's empty, the job pushes with the job token, which needs
-        "Allow Git push requests to the repository" (Settings > CI/CD > Job token permissions).
+        What to push with, when the job token can't: a project or personal access token with
+        write_repository, in a masked CI/CD variable. When it's empty, the job pushes with the
+        job token, which needs "Allow Git push requests to the repository" (Settings > CI/CD >
+        Job token permissions; GitLab 18.4 and later) and push rights for whoever started the pipeline.
     push:
       type: boolean
       default: true

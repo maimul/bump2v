@@ -8,6 +8,8 @@ pip install bump2v        # or: pipx install bump2v
 
 Requires Python 3.11 or newer (older Pythons get 1.6.x). No other dependencies.
 
+Guides for each stack and CI, and for AI coding agents: **https://maimul.github.io/bump2v/**
+
 ---
 
 ## How it works
@@ -268,6 +270,28 @@ Inputs: `part` (`auto`), `push` (`true`), `retry` (`3`), `working-directory` (`.
 - Pushes made with `GITHUB_TOKEN` don't start new workflow runs, so the version commit won't trigger the pipeline again. Use a `concurrency` group so two releases never race.
 - bump2v stops before writing anything if the new tag already exists (exit 5), and keeps the commit and tag local if HEAD is detached (exit 6).
 - The branch and the tag are pushed together (`git push --atomic`): if the push is rejected because another run pushed first, no tag is left behind on the remote to block the next bump.
+
+---
+
+## GitLab CI/CD and other CI
+
+GitLab templates in the CI/CD component format (`templates/release.yml`, `templates/check.yml`), run in the bump2v image:
+
+```yaml
+include:
+  - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.10.0/templates/release.yml
+    inputs:
+      branches: /^(development|main)$/
+  - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.10.0/templates/check.yml
+```
+
+Later jobs get `BUMP2V_VERSION`, `BUMP2V_SHA` (the commit to build), `BUMP2V_TAG` and `BUMP2V_BUMPED`. Setup (the push token, inputs): [GitLab guide](https://maimul.github.io/bump2v/ci/gitlab/).
+
+For any other CI, the container image `ghcr.io/maimul/bump2v` (tags `1.11.0`, `1.11`, `1`, `latest`; amd64 and arm64) has Python, git and bump2v, and no entrypoint: [any other CI](https://maimul.github.io/bump2v/ci/other/).
+
+```zsh
+docker run --rm -v "$PWD:/repo" ghcr.io/maimul/bump2v:1 bump2v plan auto
+```
 
 ---
 

@@ -24,10 +24,17 @@ requirements.txt        # Empty — no dependencies
 .bumpversion.cfg        # bump2v uses itself to version itself
 action.yml              # The GitHub Action (composite): runs bump2v from its own checkout
 .pre-commit-hooks.yaml  # The pre-commit hook `bump2v-check` (runs `bump2v check`)
+Dockerfile              # The image ghcr.io/maimul/bump2v (.dockerignore keeps it to the package)
+templates/              # GitLab CI/CD templates (component format): release.yml, check.yml
+zensical.toml           # The docs site config; pages in website/, built into site/ (gitignored)
+website/                # Docs site pages (guides per stack and CI); the reference stays in README
 .github/workflows/
-  test.yml              # Tests on every push to main and every PR (Python 3.11–3.15, Linux/macOS/Windows)
+  test.yml              # Tests on every push to main and every PR (Python 3.11–3.15, Linux/macOS/Windows),
+                        # the pre-commit hook, and the image running the GitLab templates
   action.yml            # Runs the GitHub Action against a throwaway repo on all three OSes
-  pypi-publish.yml      # On a version tag (v1.10.0): tests, PyPI, then a GitHub Release and the v1 tag
+  pypi-publish.yml      # On a version tag (v1.10.0): tests, PyPI, then the GitHub Release, the v1 tag
+                        # and the container image
+  docs.yml              # Builds the docs site (--strict) on PRs and main; deploys it to Pages from main
 tests/                  # pytest suite (see Tests below)
 docs/
   ROADMAP.md            # Where the project is going and why
@@ -172,6 +179,7 @@ When adding a new feature or fixing a bug, add a corresponding test:
 | `bump2v/__main__.py` | `tests/test_auto.py` |
 | `bump2v/output.py` | `tests/test_output.py` |
 | `bump2v/init.py` | `tests/test_init.py` |
+| `Dockerfile`, `templates/*.yml` | `tests/ci/gitlab_templates.py` (needs Docker and PyYAML; CI job `container`) |
 | `bumpversion/utils.py` (file edits) | `tests/test_cli.py` |
 
 ## Publishing checklist
@@ -196,6 +204,11 @@ moving `v1` tag. It:
 5. After the upload (job `github-release`): force-moves the major tag (`v1`) to this version unless a
    newer 1.x exists (a backport leaves it), and creates the GitHub Release with the commits since
    the previous version. Never move `v1` by hand to a version that isn't on PyPI.
+6. After the upload (job `image`): builds the image for amd64 and arm64 and pushes it to
+   `ghcr.io/maimul/bump2v` as `X.Y.Z`, plus `X.Y`, `X` and `latest` when no newer version holds them.
+
+Each release also bumps the version pins in the GitLab templates (their default image), both
+READMEs and the docs site (`.bumpversion.cfg` lists them), so `bump2v check` covers them too.
 
 The GitHub Marketplace listing is the owner's step in the web UI (2FA): edit the release, tick
 "Publish this Action to the GitHub Marketplace", pick the categories. A release made by the
