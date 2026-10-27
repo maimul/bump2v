@@ -3,6 +3,7 @@
 Finished items moved out of [TRACKER.md](TRACKER.md), verbatim, newest first. Not read at session start.
 
 ## Done
+- T-025 2026-10-26 1.8.2 on PyPI: `auto` ignores tags when tag = False (it had counted from tags left over from before tagging was turned off and planned a major bump). Tests, Action (3 OSes) and publish green. sync: —
 - T-009 2026-10-26 Team pilot: all 13 pin PRs (`bump2v>=1.6.2,<2`) open and mergeable; the round-2 pilot PR (move one pipeline to the Action) is open too. Merging is the team's call. sync: —
 - T-018 2026-10-26 Removed the unused PyPI token secret, `PYPI_USERNAME` variable and `PYPI_API_TOKEN` environment; only the `pypi` environment (Trusted Publishing) remains. sync: —
 - T-022 2026-10-26 1.8.0/1.8.1 on PyPI: `--sync`, `--retry`, `--github-output`, `show` fails on a missing value, the GitHub Action; 1.8.1 fixes Windows (git output decoded as UTF-8, init paths with /). Action verified on Linux, macOS and Windows; tests now gate publishing on all three OSes. sync: —

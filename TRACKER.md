@@ -11,7 +11,7 @@ Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Research behind it: [docs/research/
 None. Personal repo with no team board, so `/track-sync` does not apply.
 
 ## Now
-- T-014 Roadmap Phase 3, first part: pre-commit hook (`bump2v check`), a moving `v1` tag for the Action, a GitHub Release per version, Marketplace listing (the user ticks the box).
+- (none)
 
 ## Next
 - T-029 Roadmap Phase 3, rest: GitLab CI/CD component, container image, docs site.
@@ -24,12 +24,13 @@ None. Personal repo with no team board, so `/track-sync` does not apply.
 - T-003 The `testing` branch is stale (last commit at 1.1.16). Delete it once the user confirms.
 
 ## Blocked
+- T-030 List the Action on GitHub Marketplace: edit the v1.10.0 release, tick "Publish this Action to the GitHub Marketplace", category Continuous integration. Web UI with 2FA only. Unblocks: the user.
 - T-027 Team pilot, last repo: its audit gate blocks the first bump; fix PR open 2026-10-27 (lockfile + zod 4, Verify green on Node 20 locally; no PR CI there). Unblocks: the repo owner (merge; bump-once decision); then check the first bump.
 - T-028 A team repo's second dev branch couldn't deploy: 15 orphan tags from pre-1.7.1 non-atomic pushes collided with its next version. Tags deleted 2026-10-27 (0 left on the remote). Unblocks: the team's next push to that branch (none since mid-September); then check it builds the next version.
 - T-024 Revoke the old PyPI API token on pypi.org (removed from GitHub, still valid until revoked). Unblocks: the user.
 
 ## Done
 The last three; older items are in [TRACKER-ARCHIVE.md](TRACKER-ARCHIVE.md).
+- T-014 2026-10-27 1.10.0 on PyPI: pre-commit hook `bump2v-check` (CI job; run from GitHub, autoupdate picks v1.10.0), GitHub Release per version, `v1` tag at v1.10.0 (moved by the publish workflow). sync: —
 - T-023 2026-10-26 Team pilot, round 2: 12 pipelines on the Action (1.9.2); 11 first runs green end to end. Detail: [TRACKER-NOTES.md](TRACKER-NOTES.md#t-023) sync: —
 - T-026 2026-10-26 1.9.0 (`auto` reads a merge commit's PR title) and 1.9.2 (outputs on a [skip ci] tip; explicit UTF-8). 1.9.1 never published. Detail: [TRACKER-NOTES.md](TRACKER-NOTES.md#t-026) sync: —
-- T-025 2026-10-26 1.8.2 on PyPI: `auto` ignores tags when tag = False (it had counted from tags left over from before tagging was turned off and planned a major bump). Tests, Action (3 OSes) and publish green. sync: —
