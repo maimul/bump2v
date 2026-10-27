@@ -1,0 +1,90 @@
+# bump2v release, as a GitLab CI/CD component (it also works with include:remote).
+# Bumps the version in every file your bump2v config lists, commits, tags and pushes,
+# from the branch tip, one release at a time per branch. Later jobs in the pipeline get
+# BUMP2V_VERSION, BUMP2V_PREVIOUS_VERSION, BUMP2V_TAG, BUMP2V_SHA (the commit to build),
+# BUMP2V_BUMPED and BUMP2V_PUSHED as variables.
+spec:
+  inputs:
+    stage:
+      default: release
+      description: The stage the job runs in.
+    branches:
+      default: /^(main|master)$/
+      description: A regex of the branches to release from, for example /^(development|staging|main)$/.
+    part:
+      default: auto
+      regex: ^[A-Za-z0-9_-]+$
+      description: major, minor, patch, a part from your config, or auto (from the Conventional Commits since the last release).
+    token:
+      default: $BUMP2V_TOKEN
+      description: >-
+        What to push with: a project access token (role Maintainer, scope write_repository) in a
+        masked CI/CD variable. When it's empty, the job pushes with the job token, which needs
+        "Allow Git push requests to the repository" (Settings > CI/CD > Job token permissions).
+    push:
+      type: boolean
+      default: true
+      description: Push the version commit and tag. With false, they stay in the job.
+    skip-pipeline:
+      type: boolean
+      default: true
+      description: >-
+        Push with the ci.skip option, so the version commit doesn't start another branch
+        pipeline. Later jobs in this pipeline get the new version from the BUMP2V_* variables.
+    retry:
+      type: number
+      default: 3
+      description: How many more times to try when another pipeline pushed first.
+    args:
+      default: ''
+      description: Extra bump2v options, for example --config-file release.cfg
+    image:
+      default: ghcr.io/maimul/bump2v:1.10.0
+      description: The bump2v image to run.
+---
+bump2v-release:
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ $[[ inputs.branches ]]
+  # One release at a time per branch: a later pipeline waits instead of racing this push.
+  resource_group: bump2v-$CI_COMMIT_REF_SLUG
+  variables:
+    GIT_DEPTH: 0         # auto reads every commit since the last release
+    GIT_STRATEGY: clone  # a fresh clone, so no tag from a failed run is left behind
+  script:
+    - |
+      set -e
+      # GitLab checks out the pipeline's commit with a detached HEAD; bump2v releases a branch.
+      git checkout -q -B "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA"
+      git config "branch.$CI_COMMIT_BRANCH.remote" origin
+      git config "branch.$CI_COMMIT_BRANCH.merge" "refs/heads/$CI_COMMIT_BRANCH"
+      token="$[[ inputs.token ]]"
+      if [ -n "$token" ]; then
+        git remote set-url origin "$(printf '%s' "$CI_REPOSITORY_URL" | sed -E "s#//[^@]*@#//oauth2:${token}@#")"
+      fi
+      if [ "$[[ inputs.skip-pipeline ]]" = "true" ]; then
+        git config push.pushOption ci.skip
+      fi
+      push=""
+      if [ "$[[ inputs.push ]]" = "false" ]; then
+        push="--no-push"
+      fi
+      # --github-output writes key=value lines to $GITHUB_OUTPUT, also when there is nothing
+      # to release; they become BUMP2V_KEY=value in the dotenv report (empty ones left out).
+      export GITHUB_OUTPUT="$CI_PROJECT_DIR/.bump2v-outputs"
+      : > "$GITHUB_OUTPUT"
+      code=0
+      # args is a list of options, so it is split on purpose.
+      bump2v release "$[[ inputs.part ]]" --sync --retry "$[[ inputs.retry ]]" --github-output $push $[[ inputs.args ]] || code=$?
+      awk '{ i = index($0, "="); if (i > 1 && i < length($0)) print "BUMP2V_" toupper(substr($0, 1, i - 1)) "=" substr($0, i + 1) }' \
+        "$GITHUB_OUTPUT" > bump2v.env
+      rm -f "$GITHUB_OUTPUT"
+      if [ "$code" -eq 7 ]; then
+        echo "Nothing to release: the branch tip is already released."
+        exit 0
+      fi
+      exit "$code"
+  artifacts:
+    reports:
+      dotenv: bump2v.env

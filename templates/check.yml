@@ -1,0 +1,23 @@
+# bump2v check, as a GitLab CI/CD component (it also works with include:remote).
+# Fails the pipeline when a file your bump2v config lists no longer holds current_version,
+# for example after someone edited a version by hand in a merge request.
+spec:
+  inputs:
+    stage:
+      default: test
+      description: The stage the job runs in.
+    args:
+      default: ''
+      description: Extra bump2v options, for example --config-file release.cfg
+    image:
+      default: ghcr.io/maimul/bump2v:1.10.0
+      description: The bump2v image to run.
+---
+bump2v-check:
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  script:
+    # The tags, so the check can also say whether the current version was tagged.
+    - git fetch --quiet --tags origin || true
+    # args is a list of options, so it is split on purpose.
+    - bump2v check $[[ inputs.args ]]

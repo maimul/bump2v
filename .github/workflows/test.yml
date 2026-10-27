@@ -85,3 +85,19 @@ jobs:
           fi
           echo "$out"
           echo "$out" | grep -q 'MISSING  package.json'
+
+  container:
+    # The image (Dockerfile) and the GitLab templates (templates/), run in that image the
+    # way a GitLab runner would (tests/ci/gitlab_templates.py).
+    name: Container image and GitLab templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: docker build -t bump2v:test .
+      - run: docker run --rm bump2v:test
+      - run: |
+          pip install pyyaml
+          python -X warn_default_encoding -W error::EncodingWarning tests/ci/gitlab_templates.py --image bump2v:test
