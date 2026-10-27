@@ -1,0 +1,8 @@
+# Only what `pip install .` needs; everything else stays out of the image.
+*
+!pyproject.toml
+!README.rst
+!LICENSE
+!MANIFEST.in
+!bump2v/
+**/__pycache__
