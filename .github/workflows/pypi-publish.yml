@@ -1,14 +1,17 @@
-# Publishes to PyPI on every v* tag push.
+# Publishes to PyPI on every version tag push (v1.10.0).
 # Tests must pass before the package is built and uploaded.
 # Upload uses PyPI Trusted Publishing (OIDC): no stored API token, and PyPI
 # records PEP 740 attestations for each file.
+# Once the upload succeeds, the version gets a GitHub Release and the moving
+# major tag (v1) points at it, so `uses: maimul/bump2v@v1` runs the newest 1.x.
 
 name: Upload Python Package
 
 on:
   push:
     tags:
-      - 'v*'
+      # Version tags only: the moving major tag (v1) must not start a publish.
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: read
@@ -64,3 +67,43 @@ jobs:
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
+
+  github-release:
+    name: GitHub Release and the major tag
+    needs: deploy  # only versions that reached PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # the previous release, and every tag in this major
+
+      # A backport (v1.9.3 after v1.10.0) leaves v1 where it is.
+      - name: Point the major tag at this release
+        run: |
+          major="${TAG%%.*}"
+          newest=$(git tag --list "$major.*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [ "$newest" != "$TAG" ]; then
+            echo "$major stays where it is: $newest is newer than $TAG."
+            exit 0
+          fi
+          git tag -f "$major" "$TAG^{commit}"
+          git push -f origin "refs/tags/$major"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+            exit 0
+          fi
+          prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$TAG^" 2>/dev/null || true)
+          notes=""
+          if [ -n "$prev" ]; then
+            notes=$(git log --no-merges --format='- %s' "$prev..$TAG" | grep -v '^- Version Updated: ' || true)
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes "$notes" --generate-notes
