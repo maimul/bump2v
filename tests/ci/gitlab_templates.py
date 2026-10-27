@@ -11,6 +11,7 @@ PyYAML. Not collected by pytest (no test_ prefix); CI runs it in the Action work
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -103,9 +104,8 @@ def main():
     parser.add_argument("--image", required=True)
     image = parser.parse_args().image
 
-    # The container writes as root, so on Linux some files can't be removed afterwards.
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        base = Path(tmp)
+    base = Path(tempfile.mkdtemp(prefix="bump2v-gitlab-"))
+    try:
         os.environ["GIT_CONFIG_GLOBAL"] = str(base / "gitconfig")
         os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
         for key, value in {"name": "Dev", "email": "dev@example.com"}.items():
@@ -180,6 +180,13 @@ def main():
                 print(f"ok  {template}: refuses a part that isn't a plain name")
             else:
                 sys.exit(f"FAIL: {template} accepted part={inputs['part']!r}")
+    finally:
+        # The jobs ran as root in the container; on Linux, hand their files back first.
+        if hasattr(os, "getuid"):
+            subprocess.run(["docker", "run", "--rm", "-v", f"{base}:/work", image,
+                            "chown", "-R", f"{os.getuid()}:{os.getgid()}", "/work"],
+                           capture_output=True)
+        shutil.rmtree(base, ignore_errors=True)
 
 
 if __name__ == "__main__":
