@@ -657,7 +657,7 @@ def _push_if_needed(out, push, dry_run, before, after):
         out.say("Nothing was committed or tagged, so nothing to push.")
         return False
     if not push:
-        out.say("Not pushing (push is off). Push later with: git push --follow-tags")
+        out.say("Not pushing (push is off). Push later with: git push --atomic --follow-tags")
         return False
     if _git("symbolic-ref", "-q", "HEAD").returncode != 0:
         raise Failure(
@@ -680,8 +680,8 @@ def _push_if_needed(out, push, dry_run, before, after):
             EXIT_PUSH_FAILED, "push_failed",
             "Failed to push changes to the remote repository. The version commit and "
             "tag are local; push them manually.",
-            hint="If the remote moved on, run `git pull --rebase` and then "
-                 "`git push --follow-tags`.",
+            hint="Fix what git reported above (credentials, a branch rule), then push "
+                 "with `git push --atomic --follow-tags`.",
             retryable=True,
         )
     out.say("Pushed.", f"Yay! 😺🎉 Push successful. {okay}")
