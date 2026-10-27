@@ -533,6 +533,15 @@ class TestSync:
         assert code == 7 and result["error"]["code"] == "already_released"
         assert _git(remote, "tag", "--list") == "v1.0.1"
 
+    def test_sync_works_before_the_upstream_was_fetched(self, ci_repo, tmp_path, monkeypatch, capsys):
+        # A CI checkout can have branch.main.remote/merge set but no refs/remotes/origin/main yet.
+        work, remote = ci_repo
+        _push_from_other_clone(tmp_path, remote, "fix: landed while this run was queued")
+        _git(work, "update-ref", "-d", "refs/remotes/origin/main")
+        code, result = _json(monkeypatch, capsys, "release", "patch", "--sync")
+        assert code == 0 and result["push"]["pushed"]
+        assert "fix: landed while this run was queued" in _git(remote, "log", "--format=%s", "main")
+
     def test_sync_refuses_a_diverged_branch(self, ci_repo, tmp_path, monkeypatch, capsys):
         work, remote = ci_repo
         _push_from_other_clone(tmp_path, remote, "fix: remote work")

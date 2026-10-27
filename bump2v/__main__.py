@@ -410,8 +410,12 @@ def _sync(out, args):
                       "--sync needs a branch checked out, but HEAD is detached.",
                       hint="Check out the branch to release (in GitHub Actions, run on push "
                            "events, not pull_request).")
-    upstream = _git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}").stdout.strip()
-    remote, _, remote_branch = upstream.partition("/") if upstream else ("origin", "", branch)
+    # Read the upstream from the branch config, not @{u}: @{u} fails when the upstream's
+    # remote-tracking ref hasn't been fetched yet (a fresh CI checkout), and then
+    # `rev-parse --abbrev-ref` prints "@{u}" itself.
+    remote = _git("config", f"branch.{branch}.remote").stdout.strip() or "origin"
+    merge = _git("config", f"branch.{branch}.merge").stdout.strip()
+    remote_branch = merge.removeprefix("refs/heads/") if merge.startswith("refs/heads/") else branch
     tip = f"{remote}/{remote_branch}"
     fetch = _git("fetch", "--quiet", "--tags", remote,
                  f"+refs/heads/{remote_branch}:refs/remotes/{tip}")
