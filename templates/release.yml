@@ -40,7 +40,7 @@ spec:
       default: ''
       description: Extra bump2v options, for example --config-file release.cfg
     image:
-      default: ghcr.io/maimul/bump2v:1.11.0
+      default: ghcr.io/maimul/bump2v:1.11.1
       description: The bump2v image to run.
 ---
 bump2v-release:

@@ -38,7 +38,7 @@ and `user.email` in the job.
 ## Bitbucket Pipelines
 
 ```yaml
-image: ghcr.io/maimul/bump2v:1.11.0
+image: ghcr.io/maimul/bump2v:1.11.1
 
 pipelines:
   branches:
