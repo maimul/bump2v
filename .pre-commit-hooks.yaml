@@ -1,0 +1,10 @@
+# pre-commit hooks this repo provides (https://pre-commit.com).
+# bump2v-check fails the commit when a file listed in the bump2v config no longer
+# holds current_version, so a hand-edited version never reaches the branch.
+
+- id: bump2v-check
+  name: bump2v check
+  description: Fail when a file in the bump2v config doesn't hold current_version.
+  entry: bump2v check
+  language: python
+  pass_filenames: false
