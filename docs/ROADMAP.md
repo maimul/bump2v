@@ -54,8 +54,9 @@ launch, with `bump2v` kept as an alias.
 - Monorepo packages with fixed or independent versions; hooks for lockfiles and changelog tools.
 
 ### Phase 3: distribution
-- A composite GitHub Action (`pipx run`, outputs `version`, checks fetch depth and tags), a GitLab
-  CI/CD component, a pre-commit hook (`bump2v check`), a container image, a docs site.
+- Done: the composite GitHub Action (runs from its own commit, outputs `version` and `sha`, 1.7–1.9),
+  a moving `v1` tag and a GitHub Release per version, the pre-commit hook `bump2v-check` (1.10).
+- Next: a Marketplace listing, a GitLab CI/CD component, a container image, a docs site.
 - Standalone binaries, Homebrew, npm and Scoop only when demand shows up.
 
 ### Phase 4: AI agents

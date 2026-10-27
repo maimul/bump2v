@@ -248,7 +248,7 @@ GitHub Action
             with:
               fetch-depth: 0           # auto reads the commits since the last release
           - id: bump
-            uses: maimul/bump2v@v1.8.0 # or pin the full commit SHA
+            uses: maimul/bump2v@v1     # the newest 1.x; or pin a commit SHA, see below
             with:
               part: auto               # major, minor, patch or auto (the default)
 
@@ -269,6 +269,14 @@ What the action does for you:
 - **Runs from its own commit.** No ``pip install``, nothing downloaded; pin it by SHA and that exact code runs. Needs Python 3.11+ on the runner (GitHub-hosted runners have it).
 
 Inputs: ``part`` (``auto``), ``push`` (``true``), ``retry`` (``3``), ``working-directory`` (``.``), ``args`` (extra bump2v options).
+
+**Pinning.** ``@v1`` follows the newest 1.x release. It moves only after that version has passed the tests on Linux, macOS and Windows and reached PyPI, and it never moves to 2.0. A tag can still be moved, so for a pipeline that must run exactly the code you reviewed, pin the commit, as GitHub recommends for third-party actions:
+
+.. code-block:: yaml
+
+            uses: maimul/bump2v@27d7a8829ed3b0c5ae465f5d3dfc8d83e6e37736  # v1.9.2
+
+``git ls-remote https://github.com/maimul/bump2v 'refs/tags/v1.9.2^{}'`` prints the commit for a version. Dependabot (``package-ecosystem: github-actions``) keeps SHA pins up to date.
 
 -----------
 
@@ -295,6 +303,24 @@ In CI pipelines
 - Pushes made with ``GITHUB_TOKEN`` don't start new workflow runs, so the version commit won't trigger the pipeline again. Use a ``concurrency`` group so two releases never race.
 - bump2v stops before writing anything if the new tag already exists (exit 5), and keeps the commit and tag local if HEAD is detached (exit 6).
 - The branch and the tag are pushed together (``git push --atomic``): if the push is rejected because another run pushed first, no tag is left behind on the remote to block the next bump.
+
+-----------
+
+pre-commit hook
+---------------
+
+Refuse a commit when a file listed in your config no longer holds ``current_version``, because someone (or an agent) edited a version by hand:
+
+.. code-block:: yaml
+
+    # .pre-commit-config.yaml
+    repos:
+      - repo: https://github.com/maimul/bump2v
+        rev: v1.10.0
+        hooks:
+          - id: bump2v-check
+
+The hook runs ``bump2v check``: it only reads files, with no network and no git writes, and bump2v's own version commits pass it. For a config elsewhere, add ``args: [--config-file, release.cfg]``.
 
 -----------
 

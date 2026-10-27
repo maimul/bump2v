@@ -23,10 +23,11 @@ pyproject.toml          # Package metadata and dependencies (no external deps)
 requirements.txt        # Empty — no dependencies
 .bumpversion.cfg        # bump2v uses itself to version itself
 action.yml              # The GitHub Action (composite): runs bump2v from its own checkout
+.pre-commit-hooks.yaml  # The pre-commit hook `bump2v-check` (runs `bump2v check`)
 .github/workflows/
   test.yml              # Tests on every push to main and every PR (Python 3.11–3.15, Linux/macOS/Windows)
   action.yml            # Runs the GitHub Action against a throwaway repo on all three OSes
-  pypi-publish.yml      # Publishes to PyPI on every git tag push (v*), after the tests pass
+  pypi-publish.yml      # On a version tag (v1.10.0): tests, PyPI, then a GitHub Release and the v1 tag
 tests/                  # pytest suite (see Tests below)
 docs/
   ROADMAP.md            # Where the project is going and why
@@ -183,7 +184,8 @@ Before running `bump2v minor` or `bump2v major`:
 
 ## GitHub Actions — how PyPI publish works
 
-`.github/workflows/pypi-publish.yml` triggers on any tag matching `v*`. It:
+`.github/workflows/pypi-publish.yml` triggers on version tags (`v[0-9]+.[0-9]+.[0-9]+`), not on the
+moving `v1` tag. It:
 1. Runs the tests (job `test`); the publish job needs it to pass
 2. Checks out the repo (`actions/checkout@v6`) and sets up Python (`actions/setup-python@v6`)
 3. Builds the wheel and sdist: `python -m build`
@@ -191,6 +193,13 @@ Before running `bump2v minor` or `bump2v major`:
    Publishing: the `deploy` job runs in the `pypi` environment with `id-token: write`, so there is
    no stored API token, and PyPI records attestations. The trusted publisher on PyPI must name
    owner `maimul`, repo `bump2v`, workflow `pypi-publish.yml`, environment `pypi`.
+5. After the upload (job `github-release`): force-moves the major tag (`v1`) to this version unless a
+   newer 1.x exists (a backport leaves it), and creates the GitHub Release with the commits since
+   the previous version. Never move `v1` by hand to a version that isn't on PyPI.
+
+The GitHub Marketplace listing is the owner's step in the web UI (2FA): edit the release, tick
+"Publish this Action to the GitHub Marketplace", pick the categories. A release made by the
+workflow isn't listed until someone ticks that box, so the listing shows the last ticked version.
 
 A release is done only when the new version shows on PyPI
 (`curl -s https://pypi.org/pypi/bump2v/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`).
