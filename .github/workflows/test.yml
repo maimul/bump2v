@@ -57,3 +57,31 @@ jobs:
           pip install pytest
           pip install -e .
       - run: python -X warn_default_encoding -m pytest -q -W error::EncodingWarning
+
+  pre-commit-hook:
+    # The hook in .pre-commit-hooks.yaml, installed by pre-commit from this checkout:
+    # it must pass a repo whose files hold current_version and fail one that drifted.
+    name: pre-commit hook
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Passes in line, fails on drift
+        run: |
+          pip install pre-commit
+          pre-commit validate-manifest .pre-commit-hooks.yaml
+          repo="$RUNNER_TEMP/hook-fixture"
+          git init -q -b main "$repo" && cd "$repo"
+          git config user.name ci && git config user.email ci@example.com
+          printf '[bumpversion]\ncurrent_version = 0.1.0\n\n[bumpversion:file:package.json]\nsearch = "version": "{current_version}"\nreplace = "version": "{new_version}"\n' > .bumpversion.cfg
+          printf '{\n  "name": "fixture",\n  "version": "0.1.0"\n}\n' > package.json
+          git add -A && git commit -qm init
+          pre-commit try-repo "$GITHUB_WORKSPACE" bump2v-check --all-files
+          sed -i 's/"version": "0.1.0"/"version": "0.1.1"/' package.json
+          if out=$(pre-commit try-repo "$GITHUB_WORKSPACE" bump2v-check --all-files 2>&1); then
+            echo "$out"; echo "::error::the hook passed a package.json that drifted"; exit 1
+          fi
+          echo "$out"
+          echo "$out" | grep -q 'MISSING  package.json'
