@@ -316,10 +316,10 @@ GitLab templates in the CI/CD component format (``templates/release.yml``, ``tem
 .. code-block:: yaml
 
     include:
-      - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.10.0/templates/release.yml
+      - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.11.0/templates/release.yml
         inputs:
           branches: /^(development|main)$/
-      - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.10.0/templates/check.yml
+      - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.11.0/templates/check.yml
 
 Later jobs get ``BUMP2V_VERSION``, ``BUMP2V_SHA`` (the commit to build), ``BUMP2V_TAG`` and ``BUMP2V_BUMPED``. Setup (the push token, inputs): `GitLab guide <https://maimul.github.io/bump2v/ci/gitlab/>`_.
 
@@ -341,7 +341,7 @@ Refuse a commit when a file listed in your config no longer holds ``current_vers
     # .pre-commit-config.yaml
     repos:
       - repo: https://github.com/maimul/bump2v
-        rev: v1.10.0
+        rev: v1.11.0
         hooks:
           - id: bump2v-check
 

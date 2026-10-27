@@ -7,10 +7,10 @@ a release:
 
 ```yaml
 include:
-  - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.10.0/templates/release.yml
+  - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.11.0/templates/release.yml
     inputs:
       branches: /^(development|main)$/
-  - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.10.0/templates/check.yml
+  - remote: https://raw.githubusercontent.com/maimul/bump2v/v1.11.0/templates/check.yml
 
 stages: [test, release, build]
 
