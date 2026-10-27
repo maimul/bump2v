@@ -1,0 +1,26 @@
+# bump2v
+
+> One command to version any repo: bump2v rewrites the version in every file listed in its config (.bumpversion.cfg), commits, tags and pushes branch and tag together. Zero dependencies beyond Python 3.11+ and git. Works for any language and any CI, and is built to be driven by AI coding agents.
+
+Rules for agents working in a repo that uses bump2v:
+
+- Never edit version numbers by hand; bump2v keeps every file and the config in line.
+- Preview: `bump2v plan auto --json` changes nothing and returns the new version, files, commit message and tag as one JSON object.
+- Release: `bump2v release auto` (or `patch`, `minor`, `major`) bumps, commits, tags and pushes. `--no-push` keeps it local. A dirty working tree is refused.
+- Check: `bump2v check` exits 4 when a file has drifted from current_version.
+- Exit codes: 0 ok, 1 error, 2 usage, 3 dirty tree, 4 version not found or drift, 5 tag exists, 6 push failed, 7 nothing to release.
+- `auto` follows Conventional Commits since the last release: feat is minor, feat! or a BREAKING CHANGE footer is major, anything else is patch.
+
+## Docs
+
+- [Get started](https://maimul.github.io/bump2v/): install, first release, what a release does
+- [Your stack](https://maimul.github.io/bump2v/stacks/): config for Node, Python, Rust, Helm, Expo, .NET, Go and plain files
+- [GitHub Actions](https://maimul.github.io/bump2v/ci/github-actions/): the Action, its inputs and outputs, pinning, protected branches
+- [GitLab CI/CD](https://maimul.github.io/bump2v/ci/gitlab/): the release and check templates, push tokens, BUMP2V_* variables
+- [Any other CI](https://maimul.github.io/bump2v/ci/other/): what a release job needs, Bitbucket, the container image
+- [AI coding agents](https://maimul.github.io/bump2v/agents/): the Releasing section, permission rules, JSON and exit codes
+- [Coming from bump2version](https://maimul.github.io/bump2v/migrate/): same config, and bump2v pushes by default
+
+## Reference
+
+- [README](https://raw.githubusercontent.com/maimul/bump2v/main/README.md): every command, option, config key, exit code and the JSON output
